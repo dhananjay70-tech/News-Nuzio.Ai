@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { useAuth } from './AuthContext';
-import { t as translate } from '../i18n';
+import { t as translate, tf as translateF } from '../i18n';
 
 const PreferencesContext = createContext(null);
 
@@ -21,6 +21,7 @@ export const PreferencesProvider = ({ children }) => {
     preferences: user?.preferences || null,
     updatePreferences,
     t: (key) => translate(key, language),
+    tf: (key, vars) => translateF(key, vars, language),
   };
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
