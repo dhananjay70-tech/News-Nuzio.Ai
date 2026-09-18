@@ -93,7 +93,7 @@ export class PersonalizationService {
    * stories sized to the user's briefing length (by estimated narration
    * time, not just story count), across both languages.
    */
-  async generatePersonalizedBriefing(userId) {
+  async generatePersonalizedBriefing(userId, { forceRefresh = false } = {}) {
     const user = await db.query.users.findFirst({
       where: eq(users.id, userId),
       with: { interests: true },
@@ -101,8 +101,8 @@ export class PersonalizationService {
 
     const briefingLength = user?.briefingLength || 10;
     const [enNews, hiNews, hiddenIds] = await Promise.all([
-      newsService.fetchLatestNews('en'),
-      newsService.fetchLatestNews('hi'),
+      newsService.fetchLatestNews('en', { forceRefresh }),
+      newsService.fetchLatestNews('hi', { forceRefresh }),
       this.getHiddenIds(userId),
     ]);
     const candidateNews = [...enNews, ...hiNews].filter((a) => !hiddenIds.has(a.id));
@@ -120,6 +120,7 @@ export class PersonalizationService {
       briefingLength,
       storyCount: stories.length,
       estimatedMinutes: Math.max(1, Math.round(estimatedSeconds / 60)),
+      generatedAt: new Date().toISOString(),
       stories,
     };
   }

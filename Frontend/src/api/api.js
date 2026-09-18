@@ -299,13 +299,14 @@ export const newsAPI = {
     return { success: true, data: response.data };
   },
 
-  getBriefing: async () => {
-    const response = await api.get('/news/briefing');
+  getBriefing: async ({ forceRefresh = false } = {}) => {
+    const response = await api.get('/news/briefing', { params: forceRefresh ? { forceRefresh: 'true' } : {} });
     const b = response.data;
     return {
       briefingLength: b.briefingLength,
       storyCount: b.storyCount,
       estimatedMinutes: b.estimatedMinutes,
+      generatedAt: b.generatedAt || null,
       stories: (b.stories || []).map(normalizeArticle),
     };
   },

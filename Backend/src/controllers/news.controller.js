@@ -131,7 +131,8 @@ export class NewsController {
   async getBriefing(req, res, next) {
     try {
       const userId = req.user.userId;
-      const briefing = await personalizationService.generatePersonalizedBriefing(userId);
+      const forceRefresh = req.query.forceRefresh === 'true';
+      const briefing = await personalizationService.generatePersonalizedBriefing(userId, { forceRefresh });
       return successResponse(res, briefing, 'Briefing generated');
     } catch (error) {
       next(error);
