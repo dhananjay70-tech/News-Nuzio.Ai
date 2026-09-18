@@ -101,6 +101,7 @@ const normalizeArticle = (a) => ({
   duration: formatDuration(a.duration),
   durationSeconds: a.duration || 0,
   relativeTime: formatRelativeTime(a.publishedAt),
+  publishedAt: a.publishedAt,
   listened: Boolean(a.completed),
   progress: a.progress || 0,
   // Prefer the AI-generated (heuristic) briefing script over the raw
@@ -112,6 +113,9 @@ const normalizeArticle = (a) => ({
   audioUrl: a.audioUrl || '',
   url: a.url,
   imageUrl: a.imageUrl,
+  // Real Breaking/Trending/Personalized/Important badges from the backend's
+  // scoring signals - absent (not []) on endpoints that don't personalize.
+  labels: a.labels || [],
 });
 
 // Auth Endpoints
@@ -191,64 +195,34 @@ export const userAPI = {
 // News Endpoints
 export const newsAPI = {
   getNews: async (language = 'en', category = 'All', limit = 20, page = 1, search = '') => {
-    try {
-      const params = {
-        language,
-        category: category === 'All' ? undefined : category,
-        limit,
-        page,
-        search: search || undefined,
-      };
-      const response = await api.get('/news', { params });
-      const data = response.data || {};
-      return {
-        language: data.language || language,
-        category: data.category || category,
-        search: data.search ?? search,
-        articles: (data.articles || []).map(normalizeArticle),
-        total: data.total || 0,
-        page: data.page || page,
-        limit: data.limit || limit,
-      };
-    } catch (err) {
-      if (!err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNREFUSED')) {
-        console.warn('Backend news API unreachable, returning curated demo briefing.');
-        const q = search.trim().toLowerCase();
-        const filteredStories = DEFAULT_STORIES.filter((item) =>
-          (!category || category === 'All' || item.category.toLowerCase() === category.toLowerCase()) &&
-          (!q || item.title.toLowerCase().includes(q) || item.summary?.toLowerCase().includes(q))
-        );
-        return {
-          language,
-          category,
-          search,
-          articles: filteredStories.map(normalizeArticle),
-          total: filteredStories.length,
-          page,
-          limit,
-        };
-      }
-      throw err;
-    }
+    const params = {
+      language,
+      category: category === 'All' ? undefined : category,
+      limit,
+      page,
+      search: search || undefined,
+    };
+    const response = await api.get('/news', { params });
+    const data = response.data || {};
+    return {
+      language: data.language || language,
+      category: data.category || category,
+      search: data.search ?? search,
+      articles: (data.articles || []).map(normalizeArticle),
+      total: data.total || 0,
+      page: data.page || page,
+      limit: data.limit || limit,
+      fetchedAt: data.fetchedAt || null,
+    };
   },
 
-  getPersonalized: async (category = '') => {
-    try {
-      const params = category && category !== 'All' ? { category } : {};
-      const response = await api.get('/news/personalized', { params });
-      const list = Array.isArray(response.data) ? response.data.map(normalizeArticle) : [];
-      return { news: list };
-    } catch (err) {
-      if (!err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNREFUSED')) {
-        console.warn('Backend news API unreachable, returning curated demo briefing.');
-        return {
-          news: DEFAULT_STORIES.filter(item =>
-            !category || category === 'All' || item.category.toLowerCase() === category.toLowerCase()
-          )
-        };
-      }
-      throw err;
-    }
+  getPersonalized: async (category = '', language) => {
+    const params = {};
+    if (category && category !== 'All') params.category = category;
+    if (language) params.language = language;
+    const response = await api.get('/news/personalized', { params });
+    const list = Array.isArray(response.data) ? response.data.map(normalizeArticle) : [];
+    return { news: list };
   },
 
   getById: async (id) => {
@@ -266,17 +240,53 @@ export const newsAPI = {
     }
   },
 
-  getSaved: async () => {
-    try {
-      const response = await api.get('/news/saved');
-      const list = Array.isArray(response.data) ? response.data.map(normalizeArticle) : [];
-      return { news: list };
-    } catch (err) {
-      if (!err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNREFUSED')) {
-        return { news: [] };
-      }
-      throw err;
-    }
+  getSaved: async ({ search, sort } = {}) => {
+    const params = {};
+    if (search) params.search = search;
+    if (sort) params.sort = sort;
+    const response = await api.get('/news/saved', { params });
+    const list = Array.isArray(response.data) ? response.data.map(normalizeArticle) : [];
+    return { news: list };
+  },
+
+  hideArticle: async (id) => {
+    const response = await api.post(`/news/${id}/hide`);
+    return { success: true, data: response.data };
+  },
+
+  unhideArticle: async (id) => {
+    const response = await api.delete(`/news/${id}/hide`);
+    return { success: true, data: response.data };
+  },
+
+  getRelated: async (id) => {
+    const response = await api.get(`/news/${id}/related`);
+    return { news: (response.data || []).map(normalizeArticle) };
+  },
+
+  getWhyRecommended: async (id) => {
+    const response = await api.get(`/news/${id}/why`);
+    return response.data?.explanation || '';
+  },
+
+  getMostListened: async (language) => {
+    const response = await api.get('/news/most-listened', { params: language ? { language } : {} });
+    return { news: (response.data || []).map(normalizeArticle) };
+  },
+
+  getSearchHistory: async () => {
+    const response = await api.get('/news/search/history');
+    return response.data || [];
+  },
+
+  clearSearchHistory: async () => {
+    await api.delete('/news/search/history');
+    return { success: true };
+  },
+
+  getSearchSuggestions: async () => {
+    const response = await api.get('/news/search/suggestions');
+    return response.data || [];
   },
 
   save: async (id) => {
@@ -300,11 +310,14 @@ export const newsAPI = {
     };
   },
 
-  search: async (query, { language, category, limit = 20, page = 1 } = {}) => {
+  search: async (query, { language, category, source, time, sort, limit = 20, page = 1 } = {}) => {
     const params = {
       q: query,
       language,
       category: category === 'All' ? undefined : category,
+      source: source || undefined,
+      time: time || undefined,
+      sort: sort || undefined,
       limit,
       page,
     };
@@ -328,12 +341,16 @@ export const newsAPI = {
 
   getDiscover: async (language) => {
     const response = await api.get('/news/discover', { params: language ? { language } : {} });
-    const d = response.data || { trending: [], byCategory: {} };
-    const byCategory = {};
-    Object.entries(d.byCategory || {}).forEach(([cat, articles]) => {
-      byCategory[cat] = articles.map(normalizeArticle);
-    });
-    return { trending: (d.trending || []).map(normalizeArticle), byCategory };
+    const d = response.data || {};
+    const section = (key) => (d[key] || []).map(normalizeArticle);
+    return {
+      trendingNow: section('trendingNow'),
+      topStories: section('topStories'),
+      forYou: section('forYou'),
+      latest: section('latest'),
+      mostListened: section('mostListened'),
+      topInIndia: section('topInIndia'),
+    };
   },
 
   getHistory: async () => {
@@ -342,13 +359,8 @@ export const newsAPI = {
   },
 
   getContinueListening: async () => {
-    try {
-      const response = await api.get('/news/continue');
-      return { news: (response.data || []).map(normalizeArticle) };
-    } catch (err) {
-      if (!err.response) return { news: [] };
-      throw err;
-    }
+    const response = await api.get('/news/continue');
+    return { news: (response.data || []).map(normalizeArticle) };
   },
 
   generateAudio: async (id, language, voice) => {
@@ -360,69 +372,5 @@ export const newsAPI = {
     }
   },
 };
-
-// High-fidelity fallback stories matching Figma design
-export const DEFAULT_STORIES = [
-  {
-    id: 'n1',
-    title: 'Anthropic ships Claude 4.5 with 2M-token memory and native tools',
-    source: 'The Verge',
-    category: 'AI & Tech',
-    duration: '03:47',
-    durationSeconds: 227,
-    relativeTime: '12m ago',
-    listened: false,
-    summary: 'Anthropic has officially announced Claude 4.5, boasting an unprecedented two million token context window, advanced multimodal vision analysis, and native system execution tool capabilities designed for autonomous workflows.',
-    audioUrl: '', // Will automatically synthesize speech with selected voice
-  },
-  {
-    id: 'n2',
-    title: 'OpenAI unveils voice-first search companion integrated with live web index',
-    source: 'TechCrunch',
-    category: 'AI & Tech',
-    duration: '02:15',
-    durationSeconds: 135,
-    relativeTime: '45m ago',
-    listened: false,
-    summary: 'OpenAI has expanded its real-time conversational search capabilities, allowing users to talk directly with an intelligent browsing agent that synthesizes breaking news and financial market reports on the fly.',
-    audioUrl: '',
-  },
-  {
-    id: 'n3',
-    title: 'Global chip manufacturing index surges 14% amid next-gen wafer demand',
-    source: 'Bloomberg',
-    category: 'Markets',
-    duration: '04:10',
-    durationSeconds: 250,
-    relativeTime: '2h ago',
-    listened: true,
-    summary: 'Semiconductor manufacturers report record order books as hyperscale datacenter expansion drives surging orders for three-nanometer and custom silicon designs across Asian and European fabrication facilities.',
-    audioUrl: '',
-  },
-  {
-    id: 'n4',
-    title: 'Seed and Series A venture deal velocities reach highest level in eighteen months',
-    source: 'PitchBook',
-    category: 'Startups',
-    duration: '02:50',
-    durationSeconds: 170,
-    relativeTime: '3h ago',
-    listened: false,
-    summary: 'Early-stage technology venture financing staged an aggressive comeback this quarter, with artificial intelligence, robotics, and energy infrastructure founders closing rounds in record turnaround time.',
-    audioUrl: '',
-  },
-  {
-    id: 'n5',
-    title: 'James Webb Space Telescope detects organic prebiotic molecules in distant exoplanet',
-    source: 'Nature',
-    category: 'Science',
-    duration: '05:04',
-    durationSeconds: 304,
-    relativeTime: '5h ago',
-    listened: false,
-    summary: 'Astronomers analyzing transmission spectra from the James Webb Space Telescope have identified unambiguous chemical biosignatures and hydrocarbon complexes in the temperate atmosphere of a habitable-zone super-Earth.',
-    audioUrl: '',
-  },
-];
 
 export default api;
