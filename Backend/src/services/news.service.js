@@ -8,13 +8,64 @@ import aiService from './ai.service.js';
 const SUPPORTED_LANGUAGES = ['en', 'hi'];
 const DEFAULT_LANGUAGE = 'en';
 
+// Process-local, in-memory TTL cache around provider calls (GNews/NewsAPI),
+// keyed by method+language+category/query. Intentionally not a distributed
+// cache (no Redis) - it resets on process restart and is per-instance only.
+// Purpose is avoiding redundant provider calls on rapid repeat requests
+// (category re-clicks, debounced search retries), not long-term freshness.
+const PROVIDER_CACHE_TTL_MS = 180 * 1000;
+const providerCache = new Map();
+
 export class NewsService {
+  /**
+   * Read a cache entry if present and not expired.
+   */
+  getCached(key) {
+    const entry = providerCache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.fetchedAt.getTime() > PROVIDER_CACHE_TTL_MS) {
+      providerCache.delete(key);
+      return null;
+    }
+    return entry;
+  }
+
+  /**
+   * Store a cache entry, returning the fetchedAt timestamp it was stored
+   * with (so the caller can attach it to the response).
+   */
+  setCached(key, data) {
+    const fetchedAt = new Date();
+    providerCache.set(key, { data, fetchedAt });
+    return fetchedAt;
+  }
+
+  /**
+   * Annotate a result array with when it was fetched (cached or fresh), so
+   * the frontend can render "Updated Xm ago" / power a manual refresh
+   * control. Attached as a non-index property, so it's invisible to
+   * JSON.stringify's array serialization and doesn't affect .length/iteration.
+   */
+  withFetchedAt(articles, fetchedAt) {
+    articles.fetchedAt = fetchedAt;
+    return articles;
+  }
+
   /**
    * Fetch latest news in the given language: GNews (if configured) ->
    * generic NewsAPI-shaped provider (if configured) -> database.
+   * Pass { forceRefresh: true } to bypass the provider cache.
    */
-  async fetchLatestNews(language = DEFAULT_LANGUAGE) {
+  async fetchLatestNews(language = DEFAULT_LANGUAGE, { forceRefresh = false } = {}) {
     const lang = this.normalizeLanguage(language);
+    const cacheKey = `latest:${lang}`;
+
+    if (!forceRefresh) {
+      const cached = this.getCached(cacheKey);
+      if (cached) return this.withFetchedAt(cached.data, cached.fetchedAt);
+    }
+
+    let result = null;
 
     if (config.GNEWS_API_KEY) {
       const articles = await this.fetchFromGNewsSafely('/top-headlines', {
@@ -23,29 +74,42 @@ export class NewsService {
         max: 10,
       });
       if (articles) {
-        return await this.persistArticles(this.transformGNewsArticles(articles, undefined, lang));
+        result = await this.persistArticles(this.transformGNewsArticles(articles, undefined, lang));
       }
     }
 
-    if (config.NEWS_API_KEY && config.NEWS_API_URL) {
+    if (!result && config.NEWS_API_KEY && config.NEWS_API_URL) {
       const articles = await this.fetchFromNewsAPISafely('/top-headlines', {
         language: lang,
         pageSize: 50,
       });
       if (articles) {
-        return await this.persistArticles(this.transformNewsAPIArticles(articles, undefined, lang));
+        result = await this.persistArticles(this.transformNewsAPIArticles(articles, undefined, lang));
       }
     }
 
-    return await this.fetchNewsFromDatabase(lang);
+    if (!result) {
+      result = await this.fetchNewsFromDatabase(lang);
+    }
+
+    const fetchedAt = this.setCached(cacheKey, result);
+    return this.withFetchedAt(result, fetchedAt);
   }
 
   /**
    * Fetch news for one category, in the given language: GNews -> generic
-   * NewsAPI -> database.
+   * NewsAPI -> database. Pass { forceRefresh: true } to bypass the cache.
    */
-  async fetchNewsByCategory(category, language = DEFAULT_LANGUAGE) {
+  async fetchNewsByCategory(category, language = DEFAULT_LANGUAGE, { forceRefresh = false } = {}) {
     const lang = this.normalizeLanguage(language);
+    const cacheKey = `category:${category}:${lang}`;
+
+    if (!forceRefresh) {
+      const cached = this.getCached(cacheKey);
+      if (cached) return this.withFetchedAt(cached.data, cached.fetchedAt);
+    }
+
+    let result = null;
 
     if (config.GNEWS_API_KEY) {
       const params = { category: this.mapCategoryToGNews(category), lang, max: 10 };
@@ -57,34 +121,48 @@ export class NewsService {
 
       const articles = await this.fetchFromGNewsSafely('/top-headlines', params);
       if (articles) {
-        return await this.persistArticles(this.transformGNewsArticles(articles, category, lang));
+        result = await this.persistArticles(this.transformGNewsArticles(articles, category, lang));
       }
     }
 
-    if (config.NEWS_API_KEY && config.NEWS_API_URL) {
+    if (!result && config.NEWS_API_KEY && config.NEWS_API_URL) {
       const articles = await this.fetchFromNewsAPISafely('/top-headlines', {
         category: this.mapCategoryToNewsAPI(category),
         language: lang,
         pageSize: 20,
       });
       if (articles) {
-        return await this.persistArticles(this.transformNewsAPIArticles(articles, category, lang));
+        result = await this.persistArticles(this.transformNewsAPIArticles(articles, category, lang));
       }
     }
 
-    return await db.query.newsArticles.findMany({
-      where: and(eq(newsArticles.category, category), eq(newsArticles.language, lang)),
-      orderBy: [desc(newsArticles.publishedAt)],
-      limit: 20,
-    });
+    if (!result) {
+      result = await db.query.newsArticles.findMany({
+        where: and(eq(newsArticles.category, category), eq(newsArticles.language, lang)),
+        orderBy: [desc(newsArticles.publishedAt)],
+        limit: 20,
+      });
+    }
+
+    const fetchedAt = this.setCached(cacheKey, result);
+    return this.withFetchedAt(result, fetchedAt);
   }
 
   /**
    * Search news by free-text query: GNews -> generic NewsAPI -> database
-   * (simple title/description contains-match as a last resort).
+   * (simple title/description contains-match as a last resort). Pass
+   * { forceRefresh: true } to bypass the cache.
    */
-  async searchNews(query, language = DEFAULT_LANGUAGE) {
+  async searchNews(query, language = DEFAULT_LANGUAGE, { forceRefresh = false } = {}) {
     const lang = this.normalizeLanguage(language);
+    const cacheKey = `search:${query.toLowerCase()}:${lang}`;
+
+    if (!forceRefresh) {
+      const cached = this.getCached(cacheKey);
+      if (cached) return this.withFetchedAt(cached.data, cached.fetchedAt);
+    }
+
+    let result = null;
 
     if (config.GNEWS_API_KEY) {
       const articles = await this.fetchFromGNewsSafely('/search', {
@@ -93,29 +171,34 @@ export class NewsService {
         max: 10,
       });
       if (articles) {
-        return await this.persistArticles(this.transformGNewsArticles(articles, undefined, lang));
+        result = await this.persistArticles(this.transformGNewsArticles(articles, undefined, lang));
       }
     }
 
-    if (config.NEWS_API_KEY && config.NEWS_API_URL) {
+    if (!result && config.NEWS_API_KEY && config.NEWS_API_URL) {
       const articles = await this.fetchFromNewsAPISafely('/everything', {
         q: query,
         language: lang,
         pageSize: 20,
       });
       if (articles) {
-        return await this.persistArticles(this.transformNewsAPIArticles(articles, undefined, lang));
+        result = await this.persistArticles(this.transformNewsAPIArticles(articles, undefined, lang));
       }
     }
 
-    return await db.query.newsArticles.findMany({
-      where: and(
-        eq(newsArticles.language, lang),
-        or(ilike(newsArticles.title, `%${query}%`), ilike(newsArticles.description, `%${query}%`))
-      ),
-      orderBy: [desc(newsArticles.publishedAt)],
-      limit: 20,
-    });
+    if (!result) {
+      result = await db.query.newsArticles.findMany({
+        where: and(
+          eq(newsArticles.language, lang),
+          or(ilike(newsArticles.title, `%${query}%`), ilike(newsArticles.description, `%${query}%`))
+        ),
+        orderBy: [desc(newsArticles.publishedAt)],
+        limit: 20,
+      });
+    }
+
+    const fetchedAt = this.setCached(cacheKey, result);
+    return this.withFetchedAt(result, fetchedAt);
   }
 
   /**
