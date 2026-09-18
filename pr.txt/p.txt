@@ -1,0 +1,1126 @@
+I want to significantly upgrade my Nuzio AI application.
+
+IMPORTANT:
+
+Do NOT make this a simple CRUD news application.
+
+I want Nuzio AI to feel like a real AI-powered personalized audio news product while preserving the visual design and product identity of the provided Figma.
+
+The Figma should remain the visual reference.
+
+The implementation should be more feature-rich and technically impressive than a basic clone.
+
+==================================================
+PRODUCT CONCEPT
+==================================================
+
+Nuzio AI is a personalized AI audio news assistant.
+
+The user should be able to:
+
+1. Create an account
+2. Select language
+3. Select profession
+4. Select news interests
+5. Select preferred narrator
+6. Select briefing length
+7. Receive personalized news
+8. Read news
+9. Listen to news
+10. Switch between English and Hindi
+11. Hear Hindi news in a natural Indian voice
+12. Save stories
+13. Track listening history
+14. Resume partially listened stories
+15. Refresh the briefing
+16. Discover new stories
+17. Get a personalized daily briefing
+
+The application should feel intelligent rather than static.
+
+==================================================
+LANGUAGE SUPPORT
+==================================================
+
+Support:
+
+English
+Hindi
+
+Language must be a first-class user preference.
+
+Database:
+
+language = "en"
+or
+language = "hi"
+
+When the user selects Hindi:
+
+- UI should support Hindi
+- News should preferably be Hindi
+- AI summaries should be generated in Hindi
+- Audio narration should be Hindi
+- Narrator should use an Indian Hindi voice
+- News should sound natural when spoken
+
+When English is selected:
+
+- English UI
+- English news
+- English summary
+- English narration
+
+Do NOT merely translate button labels.
+
+The complete content pipeline should respect language.
+
+==================================================
+INDIAN HINDI NEWS EXPERIENCE
+==================================================
+
+This is VERY IMPORTANT.
+
+Hindi audio should NOT sound like an English speaker reading Hindi text.
+
+The narration should sound like an Indian news presenter.
+
+Preferred voice characteristics:
+
+- Indian Hindi pronunciation
+- Natural Hindi pronunciation
+- conversational but professional
+- moderate speed
+- clear pronunciation
+- natural pauses
+- emphasis on important words
+- suitable for daily news briefing
+
+Example:
+
+Bad:
+
+"एंथ्रोपिक शिप्स क्लाउड फोर पॉइंट फाइव..."
+
+Good:
+
+"एंथ्रोपिक ने अपने नए एआई मॉडल क्लॉड 4.5 को लॉन्च किया है। कंपनी के मुताबिक, इस मॉडल में दो मिलियन टोकन तक की मेमोरी क्षमता है..."
+
+The system should generate a natural Hindi news script before sending it to TTS.
+
+==================================================
+AI NEWS PIPELINE
+==================================================
+
+Build this pipeline:
+
+News APIs / RSS
+        ↓
+News ingestion
+        ↓
+Deduplication
+        ↓
+Language detection
+        ↓
+Category classification
+        ↓
+AI summarization
+        ↓
+Personalization
+        ↓
+Hindi/English transformation
+        ↓
+TTS
+        ↓
+Audio
+        ↓
+User briefing
+
+Do NOT send raw news directly to the audio player.
+
+==================================================
+NEWS INGESTION
+==================================================
+
+Use a real news provider such as GNews or another configurable provider.
+
+Backend environment:
+
+GNEWS_API_KEY=
+
+Create:
+
+news.service.js
+
+Responsibilities:
+
+- fetch latest news
+- search news
+- filter by language
+- filter by category
+- normalize API responses
+- remove duplicates
+- store useful articles
+
+Normalize every article into:
+
+{
+  id,
+  title,
+  description,
+  content,
+  source,
+  url,
+  imageUrl,
+  category,
+  language,
+  publishedAt
+}
+
+==================================================
+NEWS CATEGORIES
+==================================================
+
+Support:
+
+AI & Technology
+Startups
+Business
+Markets
+Science
+Geopolitics
+India
+World
+Sports
+Entertainment
+Health
+Climate
+Education
+Government & Policy
+
+The user can select multiple interests.
+
+==================================================
+SMART PERSONALIZATION
+==================================================
+
+Do NOT simply filter:
+
+if category === user.category
+
+Build a scoring system.
+
+Example:
+
+Exact interest match       +10
+Profession relevance       +6
+India relevance            +5
+Freshness                  +5
+Trending topic             +3
+Previously listened        -3
+Previously skipped         -2
+Duplicate topic            -5
+
+Then:
+
+score articles
+↓
+sort descending
+↓
+select top stories
+
+Create:
+
+personalization.service.js
+
+Function:
+
+generatePersonalizedBriefing(userId)
+
+==================================================
+PROFESSION PERSONALIZATION
+==================================================
+
+Profession should influence news ranking.
+
+Examples:
+
+Technology user:
+
+AI
+software
+cloud
+cybersecurity
+startups
+
+Finance user:
+
+markets
+stocks
+economy
+business
+fintech
+
+Student:
+
+education
+technology
+jobs
+AI
+government exams
+career
+
+Founder:
+
+startups
+funding
+AI
+business
+markets
+
+Do not hardcode only one category.
+
+Create a profession → topic mapping.
+
+==================================================
+DAILY BRIEFING
+==================================================
+
+Instead of showing random news, create a briefing.
+
+Example:
+
+Good morning, Dhananjay.
+
+Your 5-minute briefing:
+
+1. AI & Tech
+2. Startups
+3. India
+4. Markets
+5. Science
+
+Total:
+
+5 stories
+approximately 5 minutes
+
+The backend should generate a briefing based on:
+
+language
+profession
+interests
+briefing length
+recent listening behavior
+
+==================================================
+BRIEFING LENGTH
+==================================================
+
+Support:
+
+5 min
+10 min
+15 min
+
+For 5 minutes:
+
+select approximately 4–6 short stories.
+
+For 10 minutes:
+
+select approximately 7–10 stories.
+
+For 15 minutes:
+
+select approximately 10–15 stories.
+
+Use article length and estimated narration duration rather than only story count.
+
+==================================================
+AI SUMMARIZATION
+==================================================
+
+Add an AI summarization layer.
+
+The AI should transform a news article into a concise briefing script.
+
+Example:
+
+Original article:
+long article content
+
+↓
+
+AI summary:
+
+- What happened
+- Why it matters
+- Important numbers
+- Context
+- What happens next
+
+For a 5-minute briefing, summaries should be concise.
+
+For 15-minute briefing, summaries can contain more context.
+
+==================================================
+HINDI NEWS GENERATION
+==================================================
+
+When language = hi:
+
+Generate Hindi briefing scripts.
+
+Do NOT perform crude word-by-word translation.
+
+The AI should write natural Indian Hindi.
+
+Example:
+
+English:
+
+"OpenAI announced a new model focused on agentic workflows."
+
+Hindi:
+
+"OpenAI ने एक नया एआई मॉडल पेश किया है, जिसे खास तौर पर एजेंटिक वर्कफ़्लो के लिए तैयार किया गया है। इसका मतलब है कि मॉडल अब कई चरणों वाले कामों को ज्यादा स्वायत्त तरीके से पूरा कर सकता है।"
+
+The generated script should be optimized for speech.
+
+Use Hindi punctuation and natural pauses.
+
+==================================================
+TTS ARCHITECTURE
+==================================================
+
+Create:
+
+audio.service.js
+
+Function:
+
+generateAudio(script, language, voice)
+
+Inputs:
+
+script
+language
+voice
+
+Support:
+
+en-IN
+hi-IN
+
+Prefer an Indian English voice for English.
+
+Prefer an Indian Hindi voice for Hindi.
+
+Keep the TTS provider abstract.
+
+Example:
+
+TTS_PROVIDER=
+
+Possible provider:
+
+ElevenLabs
+Google Cloud TTS
+Azure Speech
+etc.
+
+Do NOT hardcode provider-specific logic throughout the application.
+
+Use an adapter/service architecture.
+
+==================================================
+AUDIO CACHING
+==================================================
+
+Do NOT generate TTS every time the user clicks Play.
+
+Flow:
+
+Article
+ ↓
+Check audio cache
+ ↓
+Audio exists?
+ ├── YES → return audioUrl
+ └── NO
+      ↓
+Generate TTS
+      ↓
+Store audio
+      ↓
+Return audioUrl
+
+Store:
+
+audioUrl
+language
+voice
+duration
+
+in the database.
+
+==================================================
+AUDIO PLAYER
+==================================================
+
+Create an advanced audio player.
+
+Features:
+
+Play
+Pause
+Previous
+Next
+Seek
+Playback speed
+10 sec rewind
+10 sec forward
+Volume
+Progress
+Current time
+Remaining time
+Queue
+Auto-next
+Loading state
+
+Playback speeds:
+
+0.75x
+1x
+1.25x
+1.5x
+2x
+
+When the story ends:
+
+Automatically play the next personalized story.
+
+==================================================
+CONTINUE LISTENING
+==================================================
+
+Save playback progress.
+
+Every reasonable interval:
+
+POST /api/news/:id/listen
+
+Store:
+
+progress
+duration
+completed
+lastPlayedAt
+
+If the user closes the website and returns:
+
+show:
+
+"Continue listening"
+
+Resume from the previous position.
+
+==================================================
+NEWS READER
+==================================================
+
+The user should be able to switch between:
+
+Listen
+Read
+
+For every story show:
+
+Headline
+Image
+Source
+Published time
+Summary
+Key points
+Why it matters
+Read more/source link
+
+Hindi mode:
+
+Show Hindi title and Hindi summary.
+
+English mode:
+
+Show English title and summary.
+
+==================================================
+AI "WHY IT MATTERS"
+==================================================
+
+For important stories, generate:
+
+"Why it matters"
+
+Example:
+
+Why it matters:
+
+"This could affect how developers build AI agents because..."
+
+This should be generated by the AI summarization layer.
+
+Do NOT generate exaggerated or misleading claims.
+
+==================================================
+NEWS DEDUPLICATION
+==================================================
+
+Different sources may report the same event.
+
+Implement basic deduplication.
+
+Use:
+
+normalized title
+source
+similarity
+published time
+
+Avoid showing:
+
+Story A
+Story B
+Story C
+
+when all three are basically the same event.
+
+Instead:
+
+Group them into one story.
+
+Example:
+
+"OpenAI launches new model"
+
+Sources:
+
+Reuters
+TechCrunch
+The Verge
+
+The user can see:
+
+3 sources
+
+==================================================
+MULTI-SOURCE STORY
+==================================================
+
+A story can contain:
+
+primary source
+related sources
+
+Database:
+
+NewsArticle
+NewsSource
+
+This allows the UI to show:
+
+"Covered by 3 sources"
+
+==================================================
+DISCOVER PAGE
+==================================================
+
+Add a Discover section.
+
+Features:
+
+Search
+Trending
+Categories
+Latest
+India
+AI
+Startups
+Markets
+
+Search:
+
+GET /api/news/search?q=AI
+
+The user can search for topics.
+
+==================================================
+SAVED STORIES
+==================================================
+
+Saved page:
+
+Saved stories
+
+Each story:
+
+title
+source
+category
+date
+play
+remove
+
+Endpoints:
+
+POST /api/news/:id/save
+DELETE /api/news/:id/save
+GET /api/news/saved
+
+==================================================
+LISTENING ANALYTICS
+==================================================
+
+Track basic user behavior:
+
+stories played
+stories completed
+stories skipped
+categories listened to
+average listening duration
+
+Use this information to improve personalization.
+
+Do NOT implement complicated machine learning.
+
+Use behavioral signals.
+
+Example:
+
+User repeatedly listens to AI stories.
+
+Increase AI ranking.
+
+User repeatedly skips sports.
+
+Decrease sports ranking.
+
+==================================================
+SMART REFRESH
+==================================================
+
+Refresh button should fetch fresh news.
+
+Do NOT blindly duplicate existing stories.
+
+Compare against stored articles.
+
+Only show new/relevant stories when possible.
+
+==================================================
+NEWS FRESHNESS
+==================================================
+
+Show:
+
+Just now
+15 min ago
+1 hour ago
+3 hours ago
+Yesterday
+
+Use actual publishedAt timestamps.
+
+Do NOT hardcode "12h ago".
+
+==================================================
+INDIA-FIRST NEWS
+==================================================
+
+Because this is an Indian-focused product experience:
+
+Prioritize Indian relevance when appropriate.
+
+Categories:
+
+India
+Technology
+Startups
+Business
+Markets
+Government
+Education
+Science
+
+For an Indian user, relevant India stories can receive a personalization boost.
+
+Do NOT artificially force India news if the user selected unrelated interests.
+
+==================================================
+DATABASE
+==================================================
+
+Use PostgreSQL + Prisma.
+
+Models should include at least:
+
+User
+UserInterest
+NewsArticle
+NewsSource
+NewsTopic
+SavedArticle
+ListenHistory
+AudioAsset
+
+User:
+
+id
+name
+email
+passwordHash
+language
+profession
+preferredVoice
+briefingLength
+createdAt
+updatedAt
+
+NewsArticle:
+
+id
+title
+description
+content
+summary
+whyItMatters
+language
+category
+url
+imageUrl
+publishedAt
+createdAt
+
+AudioAsset:
+
+id
+articleId
+language
+voice
+audioUrl
+duration
+createdAt
+
+ListenHistory:
+
+id
+userId
+articleId
+progress
+duration
+completed
+startedAt
+lastPlayedAt
+
+==================================================
+AUTHENTICATION
+==================================================
+
+Use simple:
+
+Email
+Password
+
+No Google OAuth.
+
+No OTP.
+
+Use:
+
+bcrypt
+JWT
+
+Endpoints:
+
+POST /api/auth/register
+POST /api/auth/login
+GET /api/users/me
+POST /api/auth/logout
+
+==================================================
+USER PREFERENCES
+==================================================
+
+Endpoint:
+
+PUT /api/users/preferences
+
+Request:
+
+{
+  language: "hi",
+  profession: "Technology",
+  interests: [
+    "AI & Technology",
+    "Startups",
+    "Science"
+  ],
+  preferredVoice: "Meera",
+  briefingLength: 5
+}
+
+==================================================
+API
+==================================================
+
+Implement:
+
+POST /api/auth/register
+POST /api/auth/login
+GET /api/users/me
+POST /api/auth/logout
+
+PUT /api/users/preferences
+GET /api/users/preferences
+
+GET /api/news/personalized
+GET /api/news/:id
+GET /api/news/search
+GET /api/news/trending
+GET /api/news/discover
+
+POST /api/news/:id/save
+DELETE /api/news/:id/save
+GET /api/news/saved
+
+POST /api/news/:id/listen
+GET /api/news/history
+GET /api/news/continue
+
+POST /api/news/:id/audio
+GET /api/news/:id/audio
+
+==================================================
+FRONTEND
+==================================================
+
+Keep the existing React + Vite application.
+
+Do NOT recreate the project.
+
+Use the Figma as the visual reference.
+
+Important screens:
+
+Login/Register
+Language selection
+Customize
+Home
+Discover
+Saved
+
+==================================================
+HOME EXPERIENCE
+==================================================
+
+Home should show:
+
+Good morning/evening, [Name]
+
+Your personalized briefing
+
+Language
+Profession
+Briefing length
+
+Category filters
+
+Main player
+
+Your briefing
+
+Story cards
+
+Continue listening
+
+Trending for you
+
+==================================================
+ADVANCED HOME SECTIONS
+==================================================
+
+Add:
+
+"Your briefing"
+
+"Continue listening"
+
+"Because you listened to AI"
+
+"Trending in Technology"
+
+"Top stories for you"
+
+"More from your interests"
+
+These should be dynamically generated.
+
+Do not overload the screen.
+
+Keep the visual hierarchy similar to Figma.
+
+==================================================
+UI DESIGN
+==================================================
+
+Keep the Figma design language:
+
+Dark
+Premium
+Purple
+Violet
+Green accent
+Soft glow
+Rounded cards
+Minimal
+Modern
+
+Use the same Nuzio AI branding.
+
+Desktop:
+
+Proper responsive website.
+
+Mobile:
+
+Automatically adapt to mobile.
+
+Do NOT render a fake phone frame.
+
+==================================================
+IMPORTANT UX
+==================================================
+
+The application should feel like:
+
+"Spotify + Morning Brew + AI News Assistant"
+
+but DO NOT copy their UI.
+
+Nuzio should remain visually consistent with the provided Figma.
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Handle:
+
+No news
+API failure
+TTS failure
+Network failure
+Invalid login
+Expired JWT
+No audio
+Empty personalization
+Rate limits
+
+Show useful messages.
+
+Example:
+
+"Your briefing is temporarily unavailable. Try refreshing."
+
+If TTS fails:
+
+allow reading the article and provide browser SpeechSynthesis fallback.
+
+==================================================
+PERFORMANCE
+==================================================
+
+Do not:
+
+- generate TTS repeatedly
+- call news API on every render
+- call AI API on every component render
+
+Use caching.
+
+Use React Query/TanStack Query if already available.
+
+Backend should cache fetched news where practical.
+
+==================================================
+SECURITY
+==================================================
+
+Never expose:
+
+GNEWS_API_KEY
+TTS_API_KEY
+JWT_SECRET
+
+to the frontend.
+
+All external API calls must happen in the backend.
+
+==================================================
+FINAL GOAL
+==================================================
+
+I do NOT want a basic news website.
+
+I want a technically impressive Nuzio AI MVP demonstrating:
+
+Authentication
++
+Personalization
++
+Real news ingestion
++
+AI summarization
++
+English/Hindi support
++
+Indian Hindi narration
++
+Audio generation
++
+Audio caching
++
+Advanced audio player
++
+Listening history
++
+Saved stories
++
+Behavior-based personalization
++
+Responsive Figma-inspired UI
+
+The system should be modular and easy to explain in an interview.
+
+Before implementation, inspect the existing project and reuse existing code.
+
+Do not unnecessarily rewrite working components.
+
+After implementation:
+
+1. Run backend.
+2. Run frontend.
+3. Run Prisma migration.
+4. Seed development data.
+5. Test registration.
+6. Test login.
+7. Test language selection.
+8. Test preferences.
+9. Test personalized news.
+10. Test Hindi news.
+11. Test English news.
+12. Test audio generation.
+13. Test audio playback.
+14. Test save.
+15. Test listening history.
+16. Test responsive design.
+17. Fix all errors.

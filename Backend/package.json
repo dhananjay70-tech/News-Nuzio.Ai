@@ -1,0 +1,41 @@
+{
+  "name": "nuzio-ai-backend",
+  "version": "1.0.0",
+  "description": "Nuzio AI - Personalized Audio News Backend",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/db/seed.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "setup": "npm install && node src/db/seed.js"
+  },
+  "keywords": [
+    "nuzio",
+    "ai",
+    "news",
+    "audio",
+    "personalized"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@paralleldrive/cuid2": "^2.2.2",
+    "axios": "^1.9.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.45.2",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "postgres": "^3.4.9",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10"
+  }
+}

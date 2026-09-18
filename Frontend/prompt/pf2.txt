@@ -1,0 +1,361 @@
+┌──────────────────────────────────────────────────────────────────────┐
+│ Nuzio AI                                      Home  Discover  Profile │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  Tailor your briefing                                                │
+│  Nuzio AI uses this to curate...                                     │
+│                                                                      │
+│  YOUR PROFESSION                                                     │
+│  [Technology] [Founder/Builder] [Student] [Finance] ...             │
+│                                                                      │
+│  NEWS INTERESTS                                                      │
+│  [AI & Tech] [Markets] [Startups] [Science] ...                      │
+│                                                                      │
+│  NARRATOR VOICE                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │ ● Aria                         British, warm       [Sample]  │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+│                                                                      │
+│  ...                                                                 │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────┐
+│ Nuzio AI       Setup│
+│                     │
+│ Tailor your         │
+│ briefing            │
+│                     │
+│ YOUR PROFESSION     │
+│ [Technology]        │
+│ [Founder/Builder]   │
+│ [Student]           │
+│                     │
+│ NEWS INTERESTS      │
+│ [AI & Tech]         │
+│ [Markets]           │
+│ [Startups]          │
+│                     │
+│ NARRATOR VOICE      │
+│ ┌─────────────────┐ │
+│ │ ● Aria          │ │
+│ │   British,warm  │ │
+│ │          Sample │ │
+│ └─────────────────┘ │
+└─────────────────────┘
+
+
+
+
+IMPORTANT UI CORRECTION:
+
+The current UI is incorrectly designed as a fixed mobile-phone-sized application centered inside the desktop browser.
+
+I DO NOT WANT A PHONE MOCKUP.
+
+I want a REAL RESPONSIVE WEBSITE.
+
+The Figma screenshots are only the visual reference. They should NOT be interpreted as "render the entire application inside an iPhone frame."
+
+==================================================
+DESKTOP REQUIREMENT
+==================================================
+
+On desktop/laptop screens:
+
+- The application must use the available browser width.
+- Do NOT render the website inside a 390px / 430px phone container.
+- Do NOT show an artificial phone frame.
+- Do NOT use iPhone borders, notch, or phone-like outer container.
+- Do NOT center the entire application inside a narrow mobile-width box.
+
+Create a proper desktop web layout.
+
+Use:
+
+width: 100%;
+min-height: 100vh;
+
+Create a responsive max-width content container where appropriate.
+
+For desktop:
+
+- Header/navigation should span the page.
+- Main content should have a proper desktop width.
+- Content can use 2-column layouts where appropriate.
+- Cards should expand naturally.
+- Form sections should use the available width.
+- Maintain the Nuzio AI dark/purple visual identity from the Figma.
+
+==================================================
+DESKTOP ONBOARDING PAGE
+==================================================
+
+The "Tailor your briefing" page should look like a professional SaaS web application.
+
+Desktop layout:
+
+LEFT / MAIN AREA:
+
+Tailor your briefing
+
+"Nuzio AI uses this to curate high-signal audio news matching your workflow."
+
+Then:
+
+1. YOUR PROFESSION
+
+Display profession options horizontally or in a responsive grid.
+
+Example:
+
+[ Technology ] [ Founder / Builder ] [ Student ]
+[ Finance ] [ Marketing ] [ Healthcare ]
+[ Engineering ]
+
+2. NEWS INTERESTS
+
+Display interests in a responsive grid.
+
+Example:
+
+[ AI & Tech ] [ Markets ] [ Startups ] [ Science ]
+[ Geopolitics ] [ Business ] [ Sports ] [ Culture ]
+
+3. NARRATOR VOICE
+
+Instead of narrow mobile cards, use a wider desktop card/list.
+
+Example:
+
+┌─────────────────────────────────────────────────────────────┐
+│ ● Aria                          British, warm       [Sample]│
+├─────────────────────────────────────────────────────────────┤
+│ ○ Kai                           American, focused   [Sample]│
+├─────────────────────────────────────────────────────────────┤
+│ ○ Meera                         Indian, calm        [Sample]│
+└─────────────────────────────────────────────────────────────┘
+
+Briefing length should also use a responsive horizontal layout.
+
+The Continue button should have an appropriate desktop width,
+NOT span the entire screen.
+
+==================================================
+MOBILE REQUIREMENT
+==================================================
+
+On mobile devices:
+
+Automatically switch to a single-column layout.
+
+The website should fit the device width.
+
+No horizontal scrolling.
+
+No fixed desktop widths.
+
+No phone frame.
+
+The content should naturally become:
+
+width: 100%;
+padding: 16px;
+
+Profession chips should wrap.
+
+Interest chips should wrap.
+
+Voice cards should become full-width.
+
+Buttons should become touch-friendly.
+
+Typography should scale down appropriately.
+
+==================================================
+BREAKPOINTS
+==================================================
+
+Use responsive breakpoints.
+
+Recommended:
+
+Mobile:
+< 640px
+
+Tablet:
+640px - 1024px
+
+Desktop:
+>= 1024px
+
+Large desktop:
+>= 1280px
+
+Do not write CSS specifically for one device model.
+
+Use flexible layouts such as:
+
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(...));
+
+and:
+
+display: flex;
+flex-wrap: wrap;
+
+Use max-width only for readable content sections, not for the entire application.
+
+==================================================
+DESKTOP HOME PAGE
+==================================================
+
+The personalized news page should ALSO be a real desktop website.
+
+Desktop example:
+
+┌──────────────────────────────────────────────────────────────────┐
+│ Nuzio AI        Home   Discover   Saved             User Profile │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│ Good morning, Dhananjay                                          │
+│ Your personalized briefing                                      │
+│                                                                  │
+│ [AI & Tech] [Markets] [Startups] [Science]                      │
+│                                                                  │
+│ ┌──────────────────────────────────┐ ┌─────────────────────────┐ │
+│ │                                  │ │ Your briefing           │ │
+│ │ Current news story               │ │                         │ │
+│ │                                  │ │ Story 1                 │ │
+│ │ Anthropic ships Claude...       │ │ Story 2                 │ │
+│ │                                  │ │ Story 3                 │ │
+│ │ Source · 03:47                   │ │ Story 4                 │ │
+│ │                                  │ │                         │ │
+│ │ █████ waveform █████             │ │                         │ │
+│ │                                  │ │                         │ │
+│ │    ◀     ▶     ▶                │ │                         │ │
+│ └──────────────────────────────────┘ └─────────────────────────┘ │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+On desktop, use a 2-column layout for the player and news list.
+
+On mobile, switch automatically to:
+
+Player
+↓
+News list
+
+==================================================
+NO FIXED PHONE WIDTH
+==================================================
+
+REMOVE patterns such as:
+
+width: 390px;
+width: 400px;
+max-width: 430px;
+height: 844px;
+
+if they are being used to constrain the ENTIRE application.
+
+Those dimensions may be used only for testing or individual components,
+but NEVER as the main application container.
+
+==================================================
+BODY
+==================================================
+
+The body should use:
+
+margin: 0;
+min-width: 0;
+width: 100%;
+min-height: 100vh;
+
+Prevent horizontal overflow:
+
+overflow-x: hidden;
+
+But DO NOT use overflow-x hidden as a solution for broken layouts.
+Fix the actual responsive sizing.
+
+==================================================
+VIEWPORT
+==================================================
+
+Make sure index.html contains:
+
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0"
+/>
+
+==================================================
+VISUAL DESIGN
+==================================================
+
+Keep the existing Nuzio AI visual style:
+
+- dark background
+- purple gradients
+- violet primary actions
+- green active states
+- rounded cards
+- subtle borders
+- soft glow
+- premium SaaS aesthetic
+- modern typography
+
+DO NOT change the visual identity.
+
+Only change the layout behavior.
+
+==================================================
+IMPORTANT
+==================================================
+
+The goal is:
+
+ONE WEBSITE
+
+that behaves differently depending on screen size.
+
+Desktop:
+Full responsive website.
+
+Tablet:
+Adapted layout.
+
+Mobile:
+Single-column mobile layout.
+
+DO NOT create separate desktop and mobile applications.
+
+DO NOT create a phone simulator.
+
+DO NOT put the website inside a fake iPhone frame.
+
+After making the changes:
+
+1. Run the application.
+2. Test at approximately:
+   1440px
+   1280px
+   1024px
+   768px
+   390px
+   375px
+
+3. Verify:
+   - no horizontal scrolling
+   - no content clipping
+   - no fixed phone container
+   - cards resize correctly
+   - buttons remain accessible
+   - typography scales correctly
+   - mobile layout remains clean
+   - desktop layout uses available space
+
+Fix any responsive issues you find.

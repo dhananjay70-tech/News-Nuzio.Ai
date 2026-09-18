@@ -1,0 +1,597 @@
+You are a senior React frontend engineer.
+
+I am building an assignment project called "Nuzio AI", an AI-powered personalized audio news application.
+
+IMPORTANT:
+I have ALREADY created the React + Vite application using:
+
+npm create vite@latest
+
+DO NOT create another Vite project.
+DO NOT recreate package.json unnecessarily.
+Work inside my existing frontend project.
+
+I have provided Figma screenshots as the UI reference.
+
+The assignment specifically asks me to implement only the important screens:
+
+1. Login
+2. Personalized news experience
+3. Audio news player
+
+Do NOT implement every screen from the Figma.
+Focus on a polished, functional MVP that closely follows the provided Figma design.
+
+==================================================
+DESIGN REFERENCE
+==================================================
+
+The Figma design uses a premium dark mobile-first UI.
+
+Visual characteristics:
+
+- Almost black background
+- Purple/indigo gradients
+- Bright violet primary buttons
+- Green accent for active/success states
+- Rounded cards
+- Soft borders
+- Subtle glow effects
+- Modern typography
+- Minimal UI
+- Mobile-first layout
+- Premium AI/product feel
+
+Approximate visual style:
+
+Background:
+#08080B / #0B0A0F
+
+Primary purple:
+#7C5CFF
+
+Bright purple:
+#8B6CFF
+
+Green:
+#35D39A
+
+Card:
+#15151A
+
+Border:
+rgba(255,255,255,0.08)
+
+Text:
+white / light gray
+
+Do not blindly copy these values if the existing design system requires adjustment.
+The final result should visually resemble the provided Figma.
+
+==================================================
+TECH STACK
+==================================================
+
+Use:
+
+- React
+- Vite
+- JavaScript or TypeScript depending on the existing project
+- React Router
+- Axios
+- CSS/Tailwind depending on what already exists
+- Lucide React for icons
+- Context API or a lightweight state management approach
+- HTML5 Audio API / browser SpeechSynthesis for audio playback fallback
+
+Do NOT introduce unnecessary frameworks.
+
+Do NOT use Next.js.
+
+Do NOT use Docker.
+
+==================================================
+REQUIRED FRONTEND FLOW
+==================================================
+
+Implement this flow:
+
+/login
+   ↓
+/onboarding
+   ↓
+/home
+
+The user should be able to:
+
+1. Open the application
+2. See the Nuzio AI login screen
+3. Login using Google
+4. If login succeeds, go to personalization
+5. Select:
+   - profession
+   - news interests/categories
+   - preferred narrator/voice
+   - preferred briefing length
+6. Save preferences
+7. Go to personalized home
+8. See personalized news stories
+9. Start playing a story
+10. Pause/resume
+11. Move to next/previous story
+12. See current playing story
+13. See progress
+14. Logout
+
+==================================================
+SCREEN 1 — LOGIN
+==================================================
+
+Create:
+
+src/pages/Login.jsx
+
+The screen should resemble the Figma login screen.
+
+Layout:
+
+- Full viewport dark background
+- Centered Nuzio AI logo
+- Small audio/wave icon near logo
+- "News on go" heading
+- Small subtitle explaining personalized audio news
+- Large "Continue with Google" button near bottom
+- Small Terms / Privacy text
+- Premium purple/black visual style
+
+Example content:
+
+Nuzio AI
+
+News on go
+
+Personalized audio news for your day.
+
+[ Continue with Google ]
+
+By continuing, you agree to our Terms & Privacy Policy.
+
+The Google button should actually connect to the backend authentication endpoint.
+
+Do not fake successful authentication.
+
+Show:
+
+- loading state
+- authentication error
+- disabled button while loading
+
+==================================================
+SCREEN 2 — ONBOARDING
+==================================================
+
+Do not reproduce all Figma onboarding screens.
+
+Create ONE clean onboarding page that combines the important personalization settings.
+
+Create:
+
+src/pages/Onboarding.jsx
+
+Sections:
+
+Profession
+
+Examples:
+
+- Technology
+- Founder / Builder
+- Student
+- Finance
+- Marketing
+- Healthcare
+- Engineering
+
+News Interests
+
+Examples:
+
+- AI & Tech
+- Markets
+- Startups
+- Science
+- Geopolitics
+- Business
+- Sports
+- Culture
+
+Voice
+
+Examples:
+
+- Aria — British, warm
+- Kai — American, focused
+- Meera — Indian, calm
+
+Briefing Length
+
+- 5 min
+- 10 min
+- 15 min
+
+Button:
+
+"Continue"
+
+The selected values must be sent to:
+
+PUT /api/users/preferences
+
+Do not keep these only in local state.
+
+After successful API response:
+
+navigate("/home")
+
+==================================================
+SCREEN 3 — HOME / PERSONALIZED NEWS
+==================================================
+
+Create:
+
+src/pages/Home.jsx
+
+This should be the most important screen.
+
+Follow the Figma reference.
+
+Header:
+
+Nuzio AI
+
+Good morning, [User Name]
+
+Subtitle:
+
+"Your personalized briefing"
+
+Category pills:
+
+- AI & Tech
+- Markets
+- Startups
+- Science
+
+Main player card:
+
+Show:
+
+- Category
+- News title
+- Source
+- Duration
+- waveform visualization
+- play/pause button
+- previous button
+- next button
+- playback speed
+
+Example:
+
+Anthropic ships Claude 4.5 with 2M-token memory and native tools
+
+The Verge
+
+03:47
+
+[ waveform ]
+
+[ previous ] [ PLAY ] [ next ]
+
+Playback speed:
+1x / 1.5x / 2x
+
+==================================================
+AUDIO PLAYER
+==================================================
+
+Create a reusable component:
+
+src/components/AudioPlayer.jsx
+
+It should support:
+
+- play
+- pause
+- seek
+- next
+- previous
+- playback speed
+- current time
+- total duration
+- progress bar
+- loading state
+
+Use HTML5 Audio if the backend provides an audio URL.
+
+If audio URL is unavailable, provide a browser SpeechSynthesis fallback so the assignment still demonstrates actual audio playback.
+
+Do NOT make a fake play button that does nothing.
+
+The player must actually work.
+
+==================================================
+NEWS LIST
+==================================================
+
+Below the main player show:
+
+"Your briefing"
+
+Display personalized news cards.
+
+Each card:
+
+- category
+- title
+- source
+- relative time
+- read/listen indicator
+- play button
+- save button
+
+Clicking a card should make it the current story in AudioPlayer.
+
+==================================================
+API INTEGRATION
+==================================================
+
+Create:
+
+src/api/api.js
+
+Use Axios.
+
+Base URL should come from:
+
+import.meta.env.VITE_API_URL
+
+Example:
+
+VITE_API_URL=http://localhost:5000/api
+
+Do NOT hardcode production URLs.
+
+Vite exposes client-side environment variables through import.meta.env and variables intended for browser code should use the VITE_ prefix. Never put secrets in VITE_ variables.
+
+==================================================
+API ENDPOINTS
+==================================================
+
+Frontend should consume:
+
+POST /api/auth/google
+
+GET /api/users/me
+
+PUT /api/users/preferences
+
+GET /api/news/personalized
+
+GET /api/news/:id
+
+POST /api/news/:id/listen
+
+==================================================
+AUTHENTICATION
+==================================================
+
+Create:
+
+src/context/AuthContext.jsx
+
+Store authenticated user state.
+
+Handle:
+
+- login
+- logout
+- current user
+- token
+- loading
+
+Use Axios interceptor to attach:
+
+Authorization: Bearer <token>
+
+Protected routes:
+
+/onboarding
+/home
+
+Unauthenticated users should be redirected to:
+
+/login
+
+Authenticated users should not see /login.
+
+==================================================
+ROUTING
+==================================================
+
+Use React Router.
+
+Routes:
+
+/login
+/onboarding
+/home
+
+Create:
+
+src/components/ProtectedRoute.jsx
+
+==================================================
+COMPONENT STRUCTURE
+==================================================
+
+Use reusable components.
+
+Suggested structure:
+
+src/
+├── api/
+│   └── api.js
+│
+├── components/
+│   ├── Logo.jsx
+│   ├── Button.jsx
+│   ├── CategoryPill.jsx
+│   ├── NewsCard.jsx
+│   ├── AudioPlayer.jsx
+│   ├── Waveform.jsx
+│   └── ProtectedRoute.jsx
+│
+├── context/
+│   ├── AuthContext.jsx
+│   └── PlayerContext.jsx
+│
+├── pages/
+│   ├── Login.jsx
+│   ├── Onboarding.jsx
+│   └── Home.jsx
+│
+├── App.jsx
+├── main.jsx
+└── index.css
+
+Adjust this structure if the existing project already has an equivalent architecture.
+
+==================================================
+PLAYER STATE
+==================================================
+
+Create a PlayerContext.
+
+State:
+
+currentStory
+isPlaying
+currentTime
+duration
+playbackRate
+queue
+
+Functions:
+
+playStory(story)
+pauseStory()
+resumeStory()
+nextStory()
+previousStory()
+seek(time)
+setPlaybackRate(rate)
+
+The home page should not directly contain all player logic.
+
+==================================================
+LOADING / ERROR STATES
+==================================================
+
+Implement professional states:
+
+- skeleton loading
+- empty news state
+- API error
+- authentication error
+- network error
+- audio loading
+- audio unavailable
+
+Example:
+
+"Your briefing is being prepared..."
+
+==================================================
+RESPONSIVENESS
+==================================================
+
+The Figma is mobile-first.
+
+Primary design target:
+
+390px × 844px approximately.
+
+But the website should also work on desktop.
+
+On desktop:
+
+- Keep the main application centered
+- Use a max-width around 430–480px for the mobile-style app
+OR create a slightly wider dashboard while preserving the mobile visual language.
+
+Do not stretch the mobile UI unnaturally across the entire desktop screen.
+
+==================================================
+ANIMATIONS
+==================================================
+
+Use subtle animations:
+
+- button hover
+- card hover
+- page transitions
+- player button scale
+- waveform animation while playing
+- skeleton loading
+
+Avoid excessive animations.
+
+==================================================
+IMPORTANT ENGINEERING RULES
+==================================================
+
+1. Do not rewrite the entire existing project.
+2. Inspect the existing project before modifying files.
+3. Reuse existing dependencies where possible.
+4. Do not create duplicate components.
+5. Do not hardcode news data into the UI.
+6. News must come from the backend API.
+7. Authentication must use the backend.
+8. Preferences must persist through the backend.
+9. Audio player must actually function.
+10. Keep the UI visually close to the provided Figma.
+11. Make the application production-quality rather than a static mockup.
+12. Add proper error handling.
+13. Keep components reusable.
+14. Do not expose backend secrets in Vite environment variables.
+15. Do not use Docker.
+
+==================================================
+FINAL TASK
+==================================================
+
+First inspect the existing Vite project.
+
+Then implement the frontend.
+
+After implementation:
+
+1. Run npm install if required.
+2. Run npm run dev.
+3. Fix all compilation errors.
+4. Check all routes.
+5. Check authentication flow.
+6. Check API integration.
+7. Check responsive UI.
+8. Check audio playback.
+9. Make sure there are no console errors.
+
+At the end, provide:
+
+- files created
+- files modified
+- npm packages installed
+- environment variables required
+- commands to run the frontend
+- API endpoints expected from backend

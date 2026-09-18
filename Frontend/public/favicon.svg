@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="nuzio-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="50%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#4F46E5"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Rounded square background with gradient -->
+  <rect x="4" y="4" width="56" height="56" rx="14" ry="14" fill="url(#nuzio-gradient)"/>
+  
+  <!-- White wave/audio symbol -->
+  <g fill="white">
+    <!-- Central wave (tallest) -->
+    <rect x="27" y="14" width="10" height="36" rx="5"/>
+    
+    <!-- Left waves -->
+    <rect x="14" y="22" width="6" height="20" rx="3" opacity="0.5"/>
+    <rect x="21" y="18" width="5" height="28" rx="2.5" opacity="0.75"/>
+    
+    <!-- Right waves -->
+    <rect x="38" y="18" width="5" height="28" rx="2.5" opacity="0.75"/>
+    <rect x="46" y="22" width="6" height="20" rx="3" opacity="0.5"/>
+  </g>
+</svg>

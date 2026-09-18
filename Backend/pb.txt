@@ -1,0 +1,806 @@
+You are a senior backend engineer.
+
+Build the backend for my assignment project:
+
+"NUZIO AI"
+
+Nuzio AI is a personalized audio news application.
+
+The assignment requires only the important functionality:
+
+1. User authentication/login
+2. User personalization
+3. Personalized news
+4. Audio news playback support
+5. Basic listening history
+
+The frontend is already being developed separately using React + Vite.
+
+DO NOT create the frontend.
+
+==================================================
+TECH STACK
+==================================================
+
+Use:
+
+- Node.js
+- Express.js
+- PostgreSQL
+- Prisma ORM
+- JWT authentication
+- bcrypt if password authentication is implemented
+- Axios/fetch for external news APIs
+- Zod for request validation
+- CORS
+- dotenv
+
+Do NOT use Docker.
+
+Do NOT use MongoDB.
+
+Do NOT create unnecessary microservices.
+
+Keep this backend as one clean REST API.
+
+==================================================
+PROJECT STRUCTURE
+==================================================
+
+Create:
+
+backend/
+├── src/
+│   ├── config/
+│   │   ├── env.js
+│   │   └── database.js
+│   │
+│   ├── controllers/
+│   │   ├── auth.controller.js
+│   │   ├── user.controller.js
+│   │   └── news.controller.js
+│   │
+│   ├── middleware/
+│   │   ├── auth.middleware.js
+│   │   ├── error.middleware.js
+│   │   └── validate.middleware.js
+│   │
+│   ├── routes/
+│   │   ├── auth.routes.js
+│   │   ├── user.routes.js
+│   │   └── news.routes.js
+│   │
+│   ├── services/
+│   │   ├── auth.service.js
+│   │   ├── news.service.js
+│   │   ├── personalization.service.js
+│   │   └── audio.service.js
+│   │
+│   ├── utils/
+│   │   ├── jwt.js
+│   │   └── response.js
+│   │
+│   ├── app.js
+│   └── server.js
+│
+├── prisma/
+│   └── schema.prisma
+│
+├── .env
+├── .env.example
+├── package.json
+└── README.md
+
+==================================================
+DATABASE
+==================================================
+
+Use PostgreSQL.
+
+Use Prisma ORM.
+
+Create these models:
+
+User
+
+Fields:
+
+id
+googleId
+name
+email
+avatarUrl
+profession
+preferredVoice
+briefingLength
+createdAt
+updatedAt
+
+UserInterest
+
+Fields:
+
+id
+userId
+category
+
+NewsArticle
+
+Fields:
+
+id
+title
+description
+content
+url
+source
+imageUrl
+category
+publishedAt
+audioUrl
+createdAt
+
+UserListenHistory
+
+Fields:
+
+id
+userId
+articleId
+progress
+completed
+listenedAt
+
+SavedArticle
+
+Fields:
+
+id
+userId
+articleId
+createdAt
+
+Use proper relations.
+
+Use indexes where appropriate.
+
+==================================================
+AUTHENTICATION
+==================================================
+
+The Figma login screen contains:
+
+"Continue with Google"
+
+Implement Google authentication.
+
+Recommended flow:
+
+Frontend obtains Google credential.
+
+Frontend sends:
+
+POST /api/auth/google
+
+Request:
+
+{
+  "credential": "GOOGLE_ID_TOKEN"
+}
+
+Backend:
+
+1. Verify Google ID token.
+2. Extract:
+   - googleId
+   - email
+   - name
+   - picture
+3. Find user by googleId/email.
+4. Create user if not found.
+5. Generate JWT.
+6. Return JWT and user.
+
+Response:
+
+{
+  "success": true,
+  "token": "...",
+  "user": {
+    "id": "...",
+    "name": "...",
+    "email": "...",
+    "avatarUrl": "..."
+  }
+}
+
+Use a server-side Google OAuth/client configuration.
+
+Never expose Google client secrets in frontend code.
+
+==================================================
+JWT
+==================================================
+
+Create:
+
+Authorization:
+
+Bearer <JWT>
+
+Middleware:
+
+requireAuth
+
+It should:
+
+1. Read Authorization header.
+2. Validate Bearer token.
+3. Verify JWT.
+4. Attach userId to req.user.
+5. Continue request.
+
+If invalid:
+
+401 Unauthorized
+
+==================================================
+AUTH ENDPOINTS
+==================================================
+
+POST /api/auth/google
+
+GET /api/users/me
+
+POST /api/auth/logout
+
+Logout can be handled client-side for stateless JWT, but expose the endpoint for clean API semantics.
+
+==================================================
+USER PREFERENCES
+==================================================
+
+Endpoint:
+
+PUT /api/users/preferences
+
+Authenticated endpoint.
+
+Request:
+
+{
+  "profession": "Technology",
+  "interests": [
+    "AI & Tech",
+    "Startups",
+    "Science"
+  ],
+  "preferredVoice": "Aria",
+  "briefingLength": 5
+}
+
+Validate all fields.
+
+Save them in PostgreSQL.
+
+Return:
+
+{
+  "success": true,
+  "preferences": {
+    ...
+  }
+}
+
+==================================================
+PERSONALIZED NEWS
+==================================================
+
+Endpoint:
+
+GET /api/news/personalized
+
+Authenticated endpoint.
+
+The backend should:
+
+1. Get current user's interests.
+2. Fetch available news.
+3. Filter by user's interests.
+4. Rank articles based on matching categories.
+5. Return personalized stories.
+
+Example:
+
+User interests:
+
+AI & Tech
+Startups
+Science
+
+Return:
+
+[
+  {
+    "id": "...",
+    "title": "Anthropic ships Claude 4.5...",
+    "description": "...",
+    "source": "The Verge",
+    "category": "AI & Tech",
+    "publishedAt": "...",
+    "audioUrl": "...",
+    "duration": 227
+  }
+]
+
+Do NOT return random unrelated articles.
+
+==================================================
+NEWS SOURCE
+==================================================
+
+Do not hardcode the entire news feed into the frontend.
+
+Create a news service abstraction:
+
+news.service.js
+
+Functions:
+
+fetchLatestNews()
+fetchNewsByCategory(category)
+getPersonalizedNews(userId)
+
+Use an external news API if an API key is available.
+
+Keep the provider configurable through environment variables.
+
+For example:
+
+NEWS_API_URL=
+NEWS_API_KEY=
+
+If an external news API is not configured, implement a small RSS-based fallback or development seed data.
+
+The application must still run locally without crashing.
+
+==================================================
+PERSONALIZATION ALGORITHM
+==================================================
+
+For the assignment, do NOT build an unnecessarily complex ML recommendation system.
+
+Use a simple transparent scoring algorithm.
+
+Example:
+
++5 exact category match
++3 related interest match
++2 recent article
++1 source preference if later added
+
+Sort descending by score.
+
+Example:
+
+Article category:
+AI & Tech
+
+User interest:
+AI & Tech
+
+Score:
+
+5
+
+This is sufficient for the assignment and easy to explain during interview.
+
+Create:
+
+personalization.service.js
+
+Function:
+
+getPersonalizedNews(userId)
+
+==================================================
+AUDIO
+==================================================
+
+The main feature is:
+
+"Playing personalized news"
+
+The frontend needs an audio URL.
+
+Create:
+
+audio.service.js
+
+Design the backend so that articles can contain:
+
+audioUrl
+
+For MVP:
+
+Option A:
+
+Use existing audio URLs.
+
+Option B:
+
+If no TTS provider is configured, return null audioUrl and allow the frontend to use browser SpeechSynthesis as a fallback.
+
+Option C:
+
+If an API key for a TTS provider exists, create an abstraction:
+
+generateArticleAudio(article)
+
+Do not hardcode a specific paid provider.
+
+Environment variable:
+
+TTS_API_KEY=
+
+The architecture should allow a provider to be added later.
+
+==================================================
+NEWS ENDPOINTS
+==================================================
+
+GET /api/news/personalized
+
+GET /api/news/:id
+
+POST /api/news/:id/listen
+
+POST /api/news/:id/save
+
+DELETE /api/news/:id/save
+
+GET /api/news/saved
+
+==================================================
+LISTEN HISTORY
+==================================================
+
+When the user starts listening:
+
+POST /api/news/:id/listen
+
+Request:
+
+{
+  "progress": 45,
+  "completed": false
+}
+
+Update or create UserListenHistory.
+
+If:
+
+progress >= 90
+
+mark:
+
+completed = true
+
+This allows the frontend to show:
+
+"3 min read"
+
+"2 stories completed"
+
+etc.
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Create centralized error middleware.
+
+Responses should follow:
+
+{
+  "success": false,
+  "message": "Human readable error",
+  "code": "ERROR_CODE"
+}
+
+Handle:
+
+400
+401
+403
+404
+409
+429
+500
+
+Never expose stack traces in production.
+
+==================================================
+VALIDATION
+==================================================
+
+Use Zod.
+
+Validate:
+
+Google login request
+User preferences
+Listen history
+Save article
+
+Reject invalid data with HTTP 400.
+
+==================================================
+CORS
+==================================================
+
+Allow the Vite frontend.
+
+Development:
+
+http://localhost:5173
+
+Make allowed origins configurable:
+
+FRONTEND_URL=http://localhost:5173
+
+Do not use wildcard CORS in production.
+
+==================================================
+ENVIRONMENT VARIABLES
+==================================================
+
+Create:
+
+.env.example
+
+Include:
+
+PORT=5000
+
+DATABASE_URL=postgresql://...
+
+JWT_SECRET=...
+
+GOOGLE_CLIENT_ID=...
+
+GOOGLE_CLIENT_SECRET=...
+
+NEWS_API_URL=...
+
+NEWS_API_KEY=...
+
+TTS_API_KEY=...
+
+FRONTEND_URL=http://localhost:5173
+
+Never commit the actual .env file.
+
+==================================================
+SECURITY
+==================================================
+
+Implement:
+
+- JWT authentication
+- input validation
+- CORS
+- environment-based secrets
+- proper HTTP status codes
+- no secret logging
+- no API key exposure
+- parameterized database access through Prisma
+
+Add reasonable rate limiting for authentication/news endpoints if practical.
+
+==================================================
+SEED DATA
+==================================================
+
+Create Prisma seed data.
+
+Include realistic news articles matching the Figma categories:
+
+AI & Tech
+Markets
+Startups
+Science
+Geopolitics
+Business
+Sports
+
+Example:
+
+Anthropic ships Claude 4.5 with 2M-token memory and native tools
+
+Do not make the seed data dependent on the frontend.
+
+==================================================
+API RESPONSE FORMAT
+==================================================
+
+Use consistent response format.
+
+Success:
+
+{
+  "success": true,
+  "data": {}
+}
+
+Error:
+
+{
+  "success": false,
+  "message": "..."
+}
+
+==================================================
+API SUMMARY
+==================================================
+
+POST
+/api/auth/google
+
+GET
+/api/users/me
+
+PUT
+/api/users/preferences
+
+GET
+/api/news/personalized
+
+GET
+/api/news/:id
+
+POST
+/api/news/:id/listen
+
+POST
+/api/news/:id/save
+
+DELETE
+/api/news/:id/save
+
+GET
+/api/news/saved
+
+==================================================
+DATABASE FLOW
+==================================================
+
+Login:
+
+Google
+ ↓
+POST /auth/google
+ ↓
+Verify Google token
+ ↓
+Find/create User
+ ↓
+Generate JWT
+ ↓
+Frontend stores auth state
+
+Personalization:
+
+Frontend
+ ↓
+PUT /users/preferences
+ ↓
+PostgreSQL
+ ↓
+User preferences saved
+
+News:
+
+Frontend
+ ↓
+GET /news/personalized
+ ↓
+Get user interests
+ ↓
+Fetch news
+ ↓
+Score articles
+ ↓
+Sort
+ ↓
+Return personalized news
+
+Playback:
+
+Frontend
+ ↓
+AudioPlayer
+ ↓
+audioUrl
+ ↓
+POST /news/:id/listen
+ ↓
+Listen history saved
+
+==================================================
+IMPORTANT
+==================================================
+
+Do not overengineer this assignment.
+
+The goal is a clean, understandable backend that I can explain during an interview.
+
+Prioritize:
+
+1. Authentication
+2. PostgreSQL persistence
+3. Personalization
+4. News API integration
+5. Audio support
+6. Clean REST APIs
+7. Error handling
+8. Security
+
+Do NOT implement:
+
+- admin dashboard
+- payment system
+- subscription management
+- complex recommendation ML
+- microservices
+- Docker
+- unnecessary AI agents
+- unnecessary Redis
+- unnecessary WebSockets
+
+==================================================
+FINAL TASK
+==================================================
+
+First inspect the existing backend directory if one exists.
+
+If backend does not exist, create it.
+
+Then:
+
+1. Install dependencies.
+2. Create Prisma schema.
+3. Create migration.
+4. Create seed data.
+5. Implement authentication.
+6. Implement JWT middleware.
+7. Implement user preferences.
+8. Implement news service.
+9. Implement personalization.
+10. Implement listening history.
+11. Implement save article.
+12. Implement audio URL support.
+13. Implement error handling.
+14. Configure CORS.
+15. Create .env.example.
+16. Create README.
+
+Then run:
+
+npm install
+npx prisma generate
+npx prisma migrate dev
+npm run seed
+npm run dev
+
+Fix all errors.
+
+Finally provide:
+
+- backend folder structure
+- environment variables
+- database setup
+- API endpoints
+- sample API requests/responses
+- commands to run backend
+- explanation of how frontend connects to backend

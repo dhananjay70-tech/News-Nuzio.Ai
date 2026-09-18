@@ -1,0 +1,717 @@
+Upgrade the existing Nuzio AI application into a much more advanced, production-quality AI news intelligence platform.
+
+IMPORTANT:
+- Do NOT recreate the project from scratch.
+- Do NOT replace the existing architecture.
+- Do NOT remove existing working functionality.
+- Preserve the current Nuzio AI visual identity and Figma-inspired dark/purple design.
+- The current Home page already looks good. Make it more sophisticated, information-dense, and product-like without making it cluttered.
+- Keep the existing responsive website layout. Do NOT create a fake mobile-phone frame.
+- Reuse existing components, API services, authentication, database models and backend wherever possible.
+- Implement real functionality, not static demo cards or fake buttons.
+- If a feature cannot be fully implemented because an external API is unavailable, create a clean backend abstraction and graceful fallback rather than hardcoding fake data.
+
+==================================================
+1. ADVANCED HOME / PERSONALIZED BRIEFING
+==================================================
+
+Upgrade the Home dashboard.
+
+Keep:
+- Greeting
+- Language selector
+- Category navigation
+- Main news/audio player
+- Briefing section
+
+Add:
+
+A. AI Daily Briefing
+Show:
+- "Your Morning Briefing"
+- Estimated listening time
+- Number of stories
+- Top 3 stories
+- Personalized relevance indicator
+- Generated timestamp
+- "Refresh briefing"
+- "Regenerate" action
+
+Example:
+"Your 8 min briefing"
+"12 stories selected for you"
+"Generated 8 minutes ago"
+
+B. AI Priority Ranking
+
+Every story should have:
+- Relevance score
+- Importance indicator
+- Category
+- Source
+- Published time
+- "Why this matters"
+- AI summary
+- Reading/listening duration
+
+Use labels such as:
+- Breaking
+- Important
+- Trending
+- Personalized
+
+Do NOT use arbitrary fake scores. Calculate them from actual available metadata/user preferences where possible.
+
+C. Smart News Cards
+
+Each article card should support:
+- Read
+- Listen
+- Save
+- Share
+- Hide
+- "Why am I seeing this?"
+- Related stories
+- Source
+- Published time
+
+D. Continue Listening
+
+Add a section showing:
+- Last listened article
+- Progress
+- Resume button
+- Recently listened stories
+
+Persist listening progress in backend/database.
+
+==================================================
+2. ADVANCED AI AUDIO EXPERIENCE
+==================================================
+
+Turn the existing audio player into a sophisticated AI news player.
+
+Features:
+- Play/pause
+- Previous/next
+- Seek
+- Progress
+- Volume
+- Playback speed:
+  0.75x
+  1x
+  1.25x
+  1.5x
+  1.75x
+  2x
+- Skip forward 15 sec
+- Skip backward 15 sec
+- Auto-play next story
+- Queue
+- Mini player
+- Full-screen player
+- Keyboard shortcuts
+- Resume from previous position
+
+Add:
+"AI Briefing" mode where multiple stories automatically play sequentially.
+
+Support:
+- English narration
+- Hindi narration
+- Indian Hindi voice when Hindi is selected
+
+Use ElevenLabs through the backend if configured.
+
+Never expose the ElevenLabs API key in frontend code.
+
+Cache generated audio so the same article/voice/language does not generate TTS repeatedly.
+
+Fallback:
+Browser SpeechSynthesis if ElevenLabs is unavailable.
+
+==================================================
+3. ADVANCED AI NEWS INTELLIGENCE
+==================================================
+
+For every article, generate:
+
+- Short summary
+- 3 key points
+- Why it matters
+- What happens next
+- Entities mentioned
+- Category
+- Topics
+- AI-generated briefing script
+
+Example:
+
+WHY IT MATTERS
+"India's AI infrastructure investment could affect cloud pricing and startup compute availability."
+
+WHAT TO WATCH
+"Watch for government announcements and private-sector capacity expansion."
+
+Do not invent facts.
+Clearly distinguish AI-generated analysis from source reporting.
+
+==================================================
+4. PERSONALIZATION ENGINE
+==================================================
+
+Use the user's:
+
+- Profession
+- Interests
+- Preferred language
+- Preferred voice
+- Briefing length
+- Listening history
+- Saved articles
+- Reading/listening behavior
+
+to rank stories.
+
+Create a backend personalization service.
+
+Example:
+
+User:
+Profession = Student
+Interests = AI, Startups, India
+
+Ranking should prioritize:
+AI + Student relevance
+Startups
+India
+Technology
+
+But still include a small amount of broader news for discovery.
+
+Add:
+"Why you're seeing this"
+
+Example:
+"Recommended because you follow AI & Tech."
+
+==================================================
+5. CATEGORY EXPERIENCE
+==================================================
+
+Keep:
+
+All
+Tech
+AI
+Student
+India
+World
+Business
+Startups
+Sports
+Science
+
+But make category selection functional.
+
+When user clicks a category:
+- Fetch category from backend
+- Apply language
+- Apply personalization
+- Update URL/query state
+- Do not reload entire page
+- Show loading skeleton
+- Show empty state if needed
+
+Do NOT simply hide already-loaded frontend articles.
+
+==================================================
+6. DISCOVER PAGE
+==================================================
+
+Upgrade Discover into an AI-powered news discovery engine.
+
+Include:
+
+Search:
+"Search AI, startups, markets, geopolitics..."
+
+Filters:
+- Category
+- Language
+- Time
+- Source
+- Trending
+- Most relevant
+
+Add sections:
+
+TRENDING NOW
+TOP STORIES
+FOR YOU
+LATEST
+MOST LISTENED
+TOP IN INDIA
+
+Search results should come from backend.
+
+Add:
+- Search history
+- Suggested searches
+- Related topics
+- Related stories
+
+Debounce search requests.
+
+==================================================
+7. SAVED / BOOKMARKS
+==================================================
+
+Upgrade Saved page.
+
+Features:
+- Saved stories
+- Saved categories
+- Search saved stories
+- Sort by newest
+- Sort by relevance
+- Remove bookmark
+- Read/listen directly
+
+Persist everything in PostgreSQL.
+
+==================================================
+8. SUBSCRIPTION / PREMIUM SYSTEM
+==================================================
+
+Add a complete subscription experience.
+
+Create:
+
+Free
+Nuzio Pro
+Nuzio Pro+ 
+
+Do NOT implement real payment processing unless payment credentials/integration already exists.
+
+Instead build the complete subscription architecture and UI so Stripe/Razorpay can be connected later.
+
+FREE PLAN:
+
+- Limited daily AI briefings
+- Limited AI summaries
+- Basic categories
+- Basic audio
+- Basic personalization
+- Limited saved stories
+
+NUZIO PRO:
+
+- Unlimited AI briefings
+- Advanced personalization
+- Full AI summaries
+- Why-it-matters analysis
+- Hindi + English AI narration
+- Premium voices
+- Unlimited saves
+- Advanced search
+- Listening history
+- Priority news refresh
+- Custom briefing length
+- Multiple daily briefings
+
+NUZIO PRO+:
+
+- Everything in Pro
+- Deep AI analysis
+- Story comparison
+- "Explain this like I'm a student"
+- "Explain this like an investor"
+- Market/business impact
+- Personalized learning connections
+- Advanced listening analytics
+- Custom AI briefing generation
+- Early access to experimental features
+
+Create a reusable subscription feature-gating system:
+
+hasFeature(user, feature)
+
+or equivalent.
+
+Do NOT scatter subscription checks throughout the UI.
+
+==================================================
+9. PLAN & BILLING PAGE
+==================================================
+
+Create a polished Plan & Billing page matching the existing design.
+
+Include:
+- Current plan
+- Usage
+- Renewal information
+- Upgrade button
+- Manage subscription
+- Feature comparison
+- Billing history placeholder
+- Payment method placeholder
+
+Example:
+
+CURRENT PLAN
+Nuzio Free
+
+AI Briefings
+3 / 5 used
+
+Saved Stories
+18
+
+Audio Minutes
+42 / 60
+
+Use progress indicators.
+
+For premium users:
+show:
+"You're on Nuzio Pro"
+
+==================================================
+10. PREMIUM FEATURE LOCKS
+==================================================
+
+When a free user tries a premium feature:
+
+Do NOT simply disable the button.
+
+Show a premium upgrade modal.
+
+Example:
+
+"Unlock Deep AI Insights"
+
+"Get deeper explanations, personalized impact analysis, and unlimited AI briefings with Nuzio Pro."
+
+Buttons:
+"Upgrade to Pro"
+"Maybe later"
+
+Use elegant purple glow styling.
+
+==================================================
+11. USAGE DASHBOARD
+==================================================
+
+Add a small "Your activity" section.
+
+Show:
+
+Stories listened
+Minutes listened
+Stories saved
+AI briefings completed
+Favorite categories
+
+Add weekly listening activity visualization.
+
+Keep it lightweight and responsive.
+
+==================================================
+12. SMART NOTIFICATIONS
+==================================================
+
+Add notification preferences.
+
+Users can configure:
+
+Morning briefing
+Breaking news
+Important AI news
+Market updates
+Startup news
+Daily digest
+
+Allow:
+ON/OFF
+preferred time
+language
+
+Persist settings in backend.
+
+==================================================
+13. SETTINGS
+==================================================
+
+Upgrade Settings page.
+
+Sections:
+
+Profile
+Preferences
+Language
+Narrator
+Briefing length
+Categories
+Notifications
+Privacy
+Subscription
+Account
+
+Add:
+"Export my data"
+
+"Delete account"
+
+with confirmation dialogs.
+
+==================================================
+14. AI STORY CHAT
+==================================================
+
+Add a premium feature to individual stories:
+
+"Ask AI about this story"
+
+Example questions:
+
+- Explain this simply
+- Why does this matter?
+- What are the key takeaways?
+- Who is affected?
+- What should I know before reading this?
+- Give me the background
+- Compare this with previous developments
+
+Use the existing backend AI architecture.
+
+Do not create fake responses.
+
+==================================================
+15. STORY COMPARISON
+==================================================
+
+Allow users to select 2–3 related stories and click:
+
+"Compare with AI"
+
+Generate:
+
+- Common facts
+- Differences
+- Different perspectives
+- Timeline
+- Key developments
+
+Clearly identify that the comparison is AI-generated.
+
+==================================================
+16. NEWS FRESHNESS
+==================================================
+
+Show article freshness.
+
+Example:
+
+"Just now"
+"12 min ago"
+"1h ago"
+"Today"
+
+Add refresh controls.
+
+Avoid unnecessary repeated calls to the news provider.
+
+Implement caching where appropriate.
+
+==================================================
+17. BACKEND ARCHITECTURE
+==================================================
+
+Keep the existing Express backend.
+
+Organize functionality into services:
+
+authService
+newsService
+personalizationService
+briefingService
+summaryService
+ttsService
+subscriptionService
+analyticsService
+searchService
+
+Routes should remain clean.
+
+Example:
+
+/api/auth
+/api/users
+/api/news
+/api/briefings
+/api/audio
+/api/search
+/api/saved
+/api/analytics
+/api/subscription
+
+Use existing PostgreSQL/Prisma architecture.
+
+Do NOT delete the existing Prisma schema.
+
+Do NOT reset the existing database.
+
+==================================================
+18. DATABASE
+==================================================
+
+Extend the existing schema only where necessary.
+
+Potential models:
+
+Subscription
+SubscriptionUsage
+UserNotificationPreference
+UserListeningSession
+SearchHistory
+UserPreference
+ArticleInteraction
+
+Maintain proper:
+- indexes
+- unique constraints
+- relations
+
+Run migrations safely.
+
+Never use destructive database reset commands.
+
+==================================================
+19. PERFORMANCE
+==================================================
+
+Implement:
+
+- API caching
+- request deduplication
+- pagination
+- lazy loading
+- debounced search
+- skeleton loaders
+- optimistic bookmark updates
+- audio caching
+- proper error handling
+
+Avoid unnecessary API calls whenever:
+- category changes
+- language changes
+- page rerenders
+
+==================================================
+20. ERROR HANDLING
+==================================================
+
+Never show vague errors such as:
+
+"Something went wrong"
+
+Instead show useful states:
+
+"News service is temporarily unavailable."
+
+"AI summary is unavailable right now."
+
+"Audio generation is temporarily unavailable."
+
+"Too many requests. Please try again in a moment."
+
+Provide Retry buttons.
+
+Do not silently fall back to fake data.
+
+==================================================
+21. UI / UX
+==================================================
+
+Preserve current Nuzio AI design language:
+
+- dark black/charcoal background
+- purple accent
+- subtle gradients
+- glowing active states
+- rounded cards
+- clean typography
+- premium SaaS appearance
+- minimal but information-rich layout
+
+Improve:
+- spacing
+- hierarchy
+- hover states
+- transitions
+- skeleton loading
+- empty states
+- responsive behavior
+- accessibility
+
+Use Lucide icons already installed.
+
+Do NOT add random emojis.
+
+Do NOT make the interface look like a generic dashboard template.
+
+==================================================
+22. NAVIGATION
+==================================================
+
+Navigation should become:
+
+Home
+Discover
+Saved
+Plan & Billing
+Settings
+
+If user is premium, show subtle "PRO" indicator.
+
+Keep profile/avatar and language selector.
+
+==================================================
+23. IMPORTANT IMPLEMENTATION RULE
+==================================================
+
+Before changing anything:
+
+1. Inspect the entire existing frontend structure.
+2. Inspect existing backend routes/services.
+3. Inspect Prisma schema.
+4. Inspect existing API client.
+5. Identify what already works.
+6. Reuse existing functionality.
+7. Make incremental changes.
+8. Do not duplicate existing services.
+9. Do not replace working components unnecessarily.
+
+After implementation:
+
+- Run frontend build
+- Run backend
+- Check all API routes
+- Check authentication
+- Check language switching
+- Check category filtering
+- Check Discover
+- Check Saved
+- Check audio
+- Check subscription gating
+- Check responsive layout
+
+Fix all TypeScript/JavaScript/runtime/build errors.
+
+Most importantly:
+DO NOT just create beautiful static UI.
+
+Every important button should either perform the intended action or connect to a real backend API.
+
+The final result should feel like a serious AI-powered product called "Nuzio AI", not a simple news website.
