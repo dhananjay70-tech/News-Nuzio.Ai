@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { usePreferences } from '../context/PreferencesContext';
 import { newsAPI } from '../api/api';
+import { getErrorMessage } from '../utils/getErrorMessage';
 import Navbar from '../components/Navbar';
 import CategoryPill from '../components/CategoryPill';
 import AudioPlayer from '../components/AudioPlayer';
 import NewsCard from '../components/NewsCard';
-import { RefreshCw, AlertCircle, Sparkles, Inbox, History, Play } from 'lucide-react';
+import BriefingHeader from '../components/BriefingHeader';
+import SkeletonList from '../components/SkeletonList';
+import EmptyState from '../components/EmptyState';
+import ErrorState from '../components/ErrorState';
+import { RefreshCw, Sparkles, Inbox, History, Play } from 'lucide-react';
 
 const CATEGORIES = ['All', 'Tech', 'AI', 'Student', 'India', 'World', 'Business', 'Startups', 'Sports', 'Science'];
 
@@ -20,9 +26,13 @@ const Home = () => {
   const { user } = useAuth();
   const { currentStory, playStory, setQueue, stopStory } = usePlayer();
   const { t } = usePreferences();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedLanguage, setSelectedLanguage] = useState(user?.language || 'en');
+  const initialCategory = searchParams.get('category') || 'All';
+  const [selectedCategory, setSelectedCategory] = useState(
+    CATEGORIES.includes(initialCategory) ? initialCategory : 'All'
+  );
+  const [selectedLanguage, setSelectedLanguage] = useState(searchParams.get('lang') || user?.language || 'en');
   const [stories, setStories] = useState([]);
   const [loadingNews, setLoadingNews] = useState(true);
   const [newsError, setNewsError] = useState(null);
@@ -52,7 +62,7 @@ const Home = () => {
       }
     } catch (err) {
       console.error('Error fetching news:', err);
-      setNewsError(err.response?.data?.message || t('briefingUnavailable'));
+      setNewsError(getErrorMessage(err, 'newsUnavailable', t));
     } finally {
       setLoadingNews(false);
     }
@@ -82,6 +92,17 @@ const Home = () => {
 
   useEffect(() => {
     fetchNews(selectedCategory, selectedLanguage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCategory, selectedLanguage]);
+
+  // Keep the URL in sync with category/language (§5) - shareable/bookmarkable,
+  // survives refresh, no full page reload since this is just history state.
+  useEffect(() => {
+    const params = {};
+    if (selectedCategory !== 'All') params.category = selectedCategory;
+    if (selectedLanguage !== (user?.language || 'en')) params.lang = selectedLanguage;
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, selectedLanguage]);
 
   useEffect(() => {
@@ -97,6 +118,11 @@ const Home = () => {
 
   const handleStorySelect = (story) => {
     playStory(story, stories);
+  };
+
+  const handleHide = (id) => {
+    setStories((prev) => prev.filter((s) => s.id !== id));
+    setContinueListening((prev) => prev.filter((s) => s.id !== id));
   };
 
   return (
@@ -152,6 +178,9 @@ const Home = () => {
             )}
           </div>
         </section>
+
+        {/* AI Daily Briefing */}
+        <BriefingHeader />
 
         {/* Category Filter Pills (Responsive Horizontal Scroller) */}
         <section
@@ -301,74 +330,16 @@ const Home = () => {
             </div>
 
             {/* Skeleton Loading State */}
-            {loadingNews && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {[1, 2, 3, 4].map((n) => (
-                  <div
-                    key={n}
-                    className="skeleton"
-                    style={{
-                      height: '116px',
-                      borderRadius: '18px',
-                      width: '100%',
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+            {loadingNews && <SkeletonList count={4} />}
 
             {/* Error State */}
             {!loadingNews && newsError && (
-              <div
-                className="card-glass"
-                style={{
-                  padding: '32px 20px',
-                  textAlign: 'center',
-                  borderRadius: '20px',
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  border: '1px solid rgba(239, 68, 68, 0.2)',
-                }}
-              >
-                <AlertCircle size={32} color="#F87171" style={{ margin: '0 auto 12px' }} />
-                <p style={{ color: '#FCA5A5', fontSize: '14px', marginBottom: '16px' }}>
-                  {newsError}
-                </p>
-                <button
-                  onClick={() => fetchNews(selectedCategory, selectedLanguage)}
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#FFFFFF',
-                    background: '#7657FF',
-                    padding: '10px 20px',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 14px rgba(124, 92, 255, 0.4)',
-                  }}
-                >
-                  {t('retryBriefing')}
-                </button>
-              </div>
+              <ErrorState message={newsError} onRetry={() => fetchNews(selectedCategory, selectedLanguage)} />
             )}
 
             {/* Empty State */}
             {!loadingNews && !newsError && stories.length === 0 && (
-              <div
-                className="card-glass"
-                style={{
-                  padding: '48px 20px',
-                  textAlign: 'center',
-                  borderRadius: '20px',
-                  color: '#8C90A0',
-                }}
-              >
-                <Inbox size={40} color="#5E6272" style={{ margin: '0 auto 14px' }} />
-                <h4 style={{ color: '#FFFFFF', fontSize: '16px', marginBottom: '6px' }}>
-                  {t('noStoriesTitle')}
-                </h4>
-                <p style={{ fontSize: '14px', maxWidth: '300px', margin: '0 auto' }}>
-                  {t('noStoriesDesc')}
-                </p>
-              </div>
+              <EmptyState icon={Inbox} title={t('noStoriesTitle')} description={t('noStoriesDesc')} />
             )}
 
             {/* List of News Cards */}
@@ -379,6 +350,7 @@ const Home = () => {
                     key={story.id}
                     story={story}
                     onSelect={handleStorySelect}
+                    onHide={handleHide}
                   />
                 ))}
               </div>
