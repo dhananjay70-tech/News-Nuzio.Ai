@@ -31,6 +31,18 @@ router.get('/briefing', requireAuth, newsController.getBriefing);
 router.get('/search', requireAuth, newsController.searchNews);
 
 /**
+ * GET /api/news/search/history
+ * DELETE /api/news/search/history
+ */
+router.get('/search/history', requireAuth, newsController.getSearchHistory);
+router.delete('/search/history', requireAuth, newsController.clearSearchHistory);
+
+/**
+ * GET /api/news/search/suggestions
+ */
+router.get('/search/suggestions', requireAuth, newsController.getSearchSuggestions);
+
+/**
  * GET /api/news/trending
  */
 router.get('/trending', requireAuth, newsController.getTrending);
@@ -57,10 +69,32 @@ router.get('/continue', requireAuth, newsController.getContinueListening);
 router.get('/saved', requireAuth, newsController.getSavedArticles);
 
 /**
+ * GET /api/news/most-listened
+ */
+router.get('/most-listened', requireAuth, newsController.getMostListened);
+
+/**
  * GET /api/news/:id
  * Get a specific article by ID
  */
 router.get('/:id', requireAuth, newsController.getArticleById);
+
+/**
+ * GET /api/news/:id/related
+ */
+router.get('/:id/related', requireAuth, newsController.getRelatedArticles);
+
+/**
+ * GET /api/news/:id/why
+ */
+router.get('/:id/why', requireAuth, newsController.getWhyRecommended);
+
+/**
+ * POST /api/news/:id/hide
+ * DELETE /api/news/:id/hide
+ */
+router.post('/:id/hide', requireAuth, newsController.hideArticle);
+router.delete('/:id/hide', requireAuth, newsController.unhideArticle);
 
 /**
  * POST /api/news/:id/listen
