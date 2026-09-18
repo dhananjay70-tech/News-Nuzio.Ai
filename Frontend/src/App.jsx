@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { PreferencesProvider } from './context/PreferencesContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { PlayerProvider } from './context/PlayerContext';
+import usePlayerKeyboardShortcuts from './hooks/usePlayerKeyboardShortcuts';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -13,6 +14,16 @@ import Discover from './pages/Discover';
 import Saved from './pages/Saved';
 import Settings from './pages/Settings';
 import MobileNav from './components/MobileNav';
+import MiniPlayer from './components/MiniPlayer';
+import FullScreenPlayer from './components/FullScreenPlayer';
+
+// Mounts the global player keyboard shortcuts - a component (not called
+// directly in App) so it renders inside PlayerProvider and can consume
+// PlayerContext via usePlayer().
+const GlobalPlayerShortcuts = () => {
+  usePlayerKeyboardShortcuts();
+  return null;
+};
 
 function App() {
   return (
@@ -21,6 +32,7 @@ function App() {
         <PreferencesProvider>
         <SettingsProvider>
         <PlayerProvider>
+          <GlobalPlayerShortcuts />
           <div className="app-shell">
             <Routes>
               {/* Public Routes */}
@@ -73,6 +85,8 @@ function App() {
               <Route path="/" element={<Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
+            <MiniPlayer />
+            <FullScreenPlayer />
             <MobileNav />
           </div>
         </PlayerProvider>

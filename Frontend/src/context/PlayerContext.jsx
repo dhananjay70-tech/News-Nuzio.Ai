@@ -30,6 +30,17 @@ export const PlayerProvider = ({ children }) => {
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
   const currentStoryIdRef = useRef(null);
+  // Story progress (0-100) to resume from once the audio's duration is
+  // known - consumed once per playStory call, in handleLoadedMetadata below.
+  const resumeProgressRef = useRef(0);
+  // True while playing through an "AI Briefing" queue (playBriefing) - forces
+  // sequential auto-advance regardless of the user's autoAdvance setting.
+  // Cleared whenever a story is explicitly selected with its own queue
+  // (NewsCard, Continue Listening, etc.), left untouched by nextStory/
+  // previousStory's internal playStory(story) calls (no queue argument) so
+  // it survives normal briefing playback.
+  const briefingModeRef = useRef(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     currentTimeRef.current = currentTime;
@@ -165,8 +176,20 @@ export const PlayerProvider = ({ children }) => {
 
     const handleLoadedMetadata = () => {
       if (playbackModeRef.current === 'audio') {
-        setDuration(audio.duration || 0);
+        const dur = audio.duration || 0;
+        setDuration(dur);
         setIsLoadingAudio(false);
+
+        // Resume from saved progress (once) - a story past 95% is treated
+        // as finished, not worth "resuming" right at the end.
+        const resumeProgress = resumeProgressRef.current;
+        resumeProgressRef.current = 0;
+        if (resumeProgress > 0 && resumeProgress < 95 && dur > 0) {
+          const target = (resumeProgress / 100) * dur;
+          audio.currentTime = target;
+          currentTimeRef.current = target;
+          setCurrentTime(target);
+        }
       }
     };
 
@@ -176,7 +199,7 @@ export const PlayerProvider = ({ children }) => {
       // where nextStory() just pauses instead of switching (and switching
       // would have reported it via playStory's own outgoing-story report).
       reportProgress(currentStory, true);
-      if (autoAdvance) nextStory();
+      if (autoAdvance || briefingModeRef.current) nextStory();
     };
 
     const handleError = () => {
@@ -252,7 +275,7 @@ export const PlayerProvider = ({ children }) => {
       currentTimeRef.current = estDuration;
       setCurrentTime(estDuration);
       reportProgress(story, true);
-      if (autoAdvance) nextStory();
+      if (autoAdvance || briefingModeRef.current) nextStory();
     };
 
     utterance.onerror = (e) => {
@@ -290,8 +313,12 @@ export const PlayerProvider = ({ children }) => {
       });
   }, [playbackRate, startSpeechPlayback]);
 
-  // Play a specific story
-  const playStory = useCallback((story, newQueue) => {
+  // Play a specific story. `newQueue`, when provided, replaces the queue -
+  // an explicit user selection (NewsCard, Continue Listening, etc.), which
+  // also exits "AI Briefing" mode unless `isBriefing` is passed (used only
+  // by playBriefing below). nextStory/previousStory call this without a
+  // queue argument, so briefing mode survives normal queue navigation.
+  const playStory = useCallback((story, newQueue, isBriefing = false) => {
     if (!story) return;
 
     // Record where we left off on the outgoing story before switching -
@@ -302,6 +329,7 @@ export const PlayerProvider = ({ children }) => {
 
     if (newQueue && Array.isArray(newQueue)) {
       setQueue(newQueue);
+      briefingModeRef.current = isBriefing;
     }
 
     setCurrentStory(story);
@@ -309,6 +337,7 @@ export const PlayerProvider = ({ children }) => {
     setIsLoadingAudio(true);
     currentTimeRef.current = 0;
     durationRef.current = 0;
+    resumeProgressRef.current = story.progress || 0;
 
     // Notify backend that this story has started
     if (story.id) {
@@ -345,6 +374,16 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [playAudioUrl, startSpeechPlayback, currentStory, reportProgress, user, language]);
 
+  // "AI Briefing" mode: fetch the day's briefing and play through it
+  // sequentially, regardless of the user's autoAdvance setting.
+  const playBriefing = useCallback(async () => {
+    const { stories } = await newsAPI.getBriefing();
+    if (stories && stories.length > 0) {
+      playStory(stories[0], stories, true);
+    }
+    return stories || [];
+  }, [playStory]);
+
   // Stop playback entirely and clear the now-playing story (as opposed to
   // pauseStory, which keeps currentStory so playback can resume). Used when
   // switching language, since a queued story is in the old language and
@@ -358,6 +397,7 @@ export const PlayerProvider = ({ children }) => {
       clearInterval(speechIntervalRef.current);
     }
     currentStoryIdRef.current = null;
+    briefingModeRef.current = false;
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
@@ -462,35 +502,35 @@ export const PlayerProvider = ({ children }) => {
     }
   }, [isPlaying, currentStory, startSpeechPlayback]);
 
-  return (
-    <PlayerContext.Provider
-      value={{
-        currentStory,
-        queue,
-        setQueue,
-        isPlaying,
-        currentTime,
-        duration,
-        playbackRate,
-        isLoadingAudio,
-        savedStoryIds,
-        toggleBookmark,
-        playStory,
-        pauseStory,
-        stopStory,
-        resumeStory,
-        nextStory,
-        previousStory,
-        seek,
-        seekRelative,
-        setPlaybackRate,
-        volume,
-        setVolume,
-      }}
-    >
-      {children}
-    </PlayerContext.Provider>
-  );
+  const value = {
+    currentStory,
+    queue,
+    setQueue,
+    isPlaying,
+    currentTime,
+    duration,
+    playbackRate,
+    isLoadingAudio,
+    savedStoryIds,
+    toggleBookmark,
+    playStory,
+    playBriefing,
+    pauseStory,
+    stopStory,
+    resumeStory,
+    nextStory,
+    previousStory,
+    seek,
+    seekRelative,
+    setPlaybackRate,
+    volume,
+    setVolume,
+    isExpanded,
+    setIsExpanded,
+    isBriefingMode: briefingModeRef.current,
+  };
+
+  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
 };
 
 export const usePlayer = () => {

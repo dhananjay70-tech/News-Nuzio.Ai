@@ -1,10 +1,10 @@
 import React, { useRef, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Bookmark, Sparkles, Volume2, Volume1, VolumeX, Loader2, RotateCcw, RotateCw, Headphones, BookOpen, ExternalLink } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Bookmark, Sparkles, Volume2, Volume1, VolumeX, Loader2, RotateCcw, RotateCw, Headphones, BookOpen, ExternalLink, Maximize2, ListMusic } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
 import { usePreferences } from '../context/PreferencesContext';
 import Waveform from './Waveform';
 
-const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2];
 
 const formatTime = (timeInSeconds) => {
   if (isNaN(timeInSeconds) || timeInSeconds < 0) return '00:00';
@@ -32,6 +32,9 @@ const AudioPlayer = ({ className = '' }) => {
     setPlaybackRate,
     volume,
     setVolume,
+    isExpanded,
+    setIsExpanded,
+    queue,
   } = usePlayer();
   const { t } = usePreferences();
   const [viewMode, setViewMode] = useState('listen'); // 'listen' | 'read'
@@ -192,6 +195,63 @@ const AudioPlayer = ({ className = '' }) => {
           >
             <Bookmark size={20} fill={isSaved ? '#7657FF' : 'none'} />
           </button>
+
+          {/* Queue (opens full-screen player + queue) */}
+          <button
+            onClick={() => setIsExpanded(true)}
+            title={t('queue')}
+            style={{
+              position: 'relative',
+              color: '#6F7383',
+              padding: '6px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <ListMusic size={19} />
+            {queue.length > 1 && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '-2px',
+                  right: '-2px',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  color: '#FFFFFF',
+                  background: 'var(--primary)',
+                  borderRadius: '999px',
+                  minWidth: '14px',
+                  height: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 2px',
+                }}
+              >
+                {queue.length}
+              </span>
+            )}
+          </button>
+
+          {/* Full-screen */}
+          {!isExpanded && (
+            <button
+              onClick={() => setIsExpanded(true)}
+              title={t('fullScreen')}
+              style={{
+                color: '#6F7383',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Maximize2 size={17} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -384,10 +444,10 @@ const AudioPlayer = ({ className = '' }) => {
             <SkipBack size={20} />
           </button>
 
-          {/* 10s Rewind */}
+          {/* 15s Rewind */}
           <button
-            onClick={() => seekRelative(-10)}
-            title={t('rewind10')}
+            onClick={() => seekRelative(-15)}
+            title={t('rewind15')}
             style={{
               color: '#C5C7D0',
               padding: '8px',
@@ -440,10 +500,10 @@ const AudioPlayer = ({ className = '' }) => {
             )}
           </button>
 
-          {/* 10s Forward */}
+          {/* 15s Forward */}
           <button
-            onClick={() => seekRelative(10)}
-            title={t('forward10')}
+            onClick={() => seekRelative(15)}
+            title={t('forward15')}
             style={{
               color: '#C5C7D0',
               padding: '8px',
