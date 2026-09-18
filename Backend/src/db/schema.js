@@ -145,6 +145,34 @@ export const savedArticles = nuzioAiSchema.table(
   ]
 );
 
+export const hiddenArticles = nuzioAiSchema.table(
+  'HiddenArticle',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    articleId: text('articleId').notNull().references(() => newsArticles.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('createdAt', { precision: 3, mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('HiddenArticle_userId_articleId_key').on(table.userId, table.articleId),
+    index('HiddenArticle_userId_idx').on(table.userId),
+  ]
+);
+
+export const searchHistory = nuzioAiSchema.table(
+  'SearchHistory',
+  {
+    id: text('id').primaryKey().$defaultFn(() => createId()),
+    userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    query: text('query').notNull(),
+    createdAt: timestamp('createdAt', { precision: 3, mode: 'date' }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('SearchHistory_userId_idx').on(table.userId),
+    index('SearchHistory_userId_createdAt_idx').on(table.userId, table.createdAt),
+  ]
+);
+
 // --- Relations (power the `db.query.*` relational API, Drizzle's
 // equivalent of Prisma's `include`) ---
 
@@ -152,6 +180,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   interests: many(userInterests),
   listenHistory: many(userListenHistory),
   savedArticles: many(savedArticles),
+  hiddenArticles: many(hiddenArticles),
+  searchHistory: many(searchHistory),
 }));
 
 export const userInterestsRelations = relations(userInterests, ({ one }) => ({
@@ -162,6 +192,7 @@ export const newsArticlesRelations = relations(newsArticles, ({ many }) => ({
   audioAssets: many(audioAssets),
   sources: many(newsSources),
   savedBy: many(savedArticles),
+  hiddenBy: many(hiddenArticles),
   listenHistory: many(userListenHistory),
 }));
 
@@ -181,4 +212,13 @@ export const userListenHistoryRelations = relations(userListenHistory, ({ one })
 export const savedArticlesRelations = relations(savedArticles, ({ one }) => ({
   user: one(users, { fields: [savedArticles.userId], references: [users.id] }),
   article: one(newsArticles, { fields: [savedArticles.articleId], references: [newsArticles.id] }),
+}));
+
+export const hiddenArticlesRelations = relations(hiddenArticles, ({ one }) => ({
+  user: one(users, { fields: [hiddenArticles.userId], references: [users.id] }),
+  article: one(newsArticles, { fields: [hiddenArticles.articleId], references: [newsArticles.id] }),
+}));
+
+export const searchHistoryRelations = relations(searchHistory, ({ one }) => ({
+  user: one(users, { fields: [searchHistory.userId], references: [users.id] }),
 }));
