@@ -33,7 +33,7 @@ const QueuePanel = () => {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '420px', overflowY: 'auto', minWidth: 0 }}>
       <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 4px 4px' }}>
         {t('upNext')} · {queue.length}
       </div>

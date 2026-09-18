@@ -169,7 +169,7 @@ const Discover = () => {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  onFocus={() => setShowHistory(true)}
+                  onFocus={() => { setShowHistory(true); setShowFilters(false); }}
                   placeholder={t('searchPlaceholder')}
                   style={{
                     width: '100%',
@@ -193,7 +193,7 @@ const Discover = () => {
                 )}
               </div>
               <button
-                onClick={() => setShowFilters((v) => !v)}
+                onClick={() => { setShowFilters((v) => !v); setShowHistory(false); }}
                 title={t('filters')}
                 style={{
                   display: 'flex',

@@ -272,7 +272,10 @@ html, body {
 
 @media (min-width: 768px) {
   .fullscreen-player-inner {
-    grid-template-columns: 1.2fr 1fr !important;
+    /* minmax(0, ...) overrides Grid's default content-based minimum size -
+       without it, the queue list's unwrapped title text forces this track
+       to its max-content width, collapsing the player column next to it. */
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) !important;
     align-items: start;
   }
 }

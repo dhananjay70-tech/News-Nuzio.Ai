@@ -137,6 +137,10 @@ const NewsCard = ({ story, onSelect, onHide }) => {
           : '1px solid var(--border-subtle)',
         cursor: 'pointer',
         position: 'relative',
+        // Without this, the next card in the list (a later, also
+        // position:relative sibling) can paint over this card's
+        // absolutely-positioned overflow menu.
+        zIndex: menuOpen ? 30 : 'auto',
         transition: 'border-color 0.2s ease, background 0.2s ease',
         display: 'flex',
         flexDirection: 'column',
