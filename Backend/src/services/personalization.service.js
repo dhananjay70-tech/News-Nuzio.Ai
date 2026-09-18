@@ -5,26 +5,30 @@ import newsService from './news.service.js';
 
 // Which categories are most relevant to a given profession. Used as a
 // ranking signal, not a hard filter - a Finance user still sees AI stories
-// if they picked "AI & Tech" as an interest, just weighted less than Markets.
+// if they picked "AI" or "Tech" as an interest, just weighted less than
+// Business. Category values must match the canonical set produced by
+// news.service.js#categorizeArticle (Tech, AI, Student, India, World,
+// Business, Startups, Sports, Science) - otherwise these bonuses never fire.
 const PROFESSION_TOPICS = {
-  'Technology': ['AI & Tech', 'Startups', 'Business'],
-  'Founder / Builder': ['Startups', 'AI & Tech', 'Markets', 'Business'],
-  'Student': ['AI & Tech', 'Science', 'India'],
-  'Finance': ['Markets', 'Business', 'AI & Tech'],
-  'Marketing': ['Business', 'Startups', 'AI & Tech'],
+  'Technology': ['Tech', 'AI', 'Startups', 'Business'],
+  'Founder / Builder': ['Startups', 'Tech', 'AI', 'Business'],
+  'Student': ['Student', 'Tech', 'AI', 'Science', 'India'],
+  'Finance': ['Business', 'Tech', 'AI'],
+  'Marketing': ['Business', 'Startups', 'Tech', 'AI'],
   'Healthcare': ['Science', 'India'],
-  'Engineering': ['AI & Tech', 'Science', 'Business'],
+  'Engineering': ['Tech', 'AI', 'Science', 'Business'],
 };
 
 const RELATED_CATEGORIES = {
-  'AI & Tech': ['Startups', 'Science'],
-  'Markets': ['Business'],
-  'Startups': ['Business', 'AI & Tech'],
-  'Science': ['AI & Tech'],
-  'Geopolitics': ['Business', 'Markets', 'India'],
-  'Business': ['Markets', 'Startups'],
-  'India': ['Geopolitics', 'Business'],
+  'Tech': ['AI', 'Startups', 'Science'],
+  'AI': ['Tech', 'Startups', 'Science'],
+  'Student': ['AI', 'Tech', 'Science'],
+  'India': ['World', 'Business'],
+  'World': ['Business', 'India'],
+  'Business': ['Startups', 'World'],
+  'Startups': ['Business', 'Tech', 'AI'],
   'Sports': [],
+  'Science': ['AI', 'Tech'],
 };
 
 export class PersonalizationService {

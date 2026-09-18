@@ -65,24 +65,30 @@ export class AIService {
   generateWhyItMatters(article, language) {
     const category = article.category || 'Business';
 
+    // Keys must match the canonical category set produced by
+    // news.service.js#categorizeArticle (Tech, AI, Student, India, World,
+    // Business, Startups, Sports, Science) - an unmapped category falls
+    // through to the generic template below instead of silently mismatching.
     const en = {
-      'AI & Tech': 'This matters because it shows how quickly AI and technology capabilities are moving - shifts like this often influence what tools and platforms come next.',
+      'Tech': 'This matters because it shows how quickly technology capabilities are moving - shifts like this often influence what tools and platforms come next.',
+      'AI': 'This matters because it shows how quickly AI capabilities are advancing, which can shape the tools, products, and jobs built around it.',
+      'Student': 'This matters for students and early-career professionals tracking how skills, education, and opportunities in this space are changing.',
       'Startups': 'This matters for founders and early-stage investors tracking where funding and momentum are heading in the startup ecosystem.',
-      'Markets': 'This matters because market movements like this can ripple into related sectors and investment decisions.',
       'Business': 'This matters because it reflects how a major player is adapting its strategy, which can affect competitors, partners, and customers.',
       'Science': 'This matters because it adds to the evidence base researchers and policymakers rely on for future decisions.',
-      'Geopolitics': 'This matters because shifts like this can affect trade, diplomacy, and policy well beyond the countries directly involved.',
+      'World': 'This matters because shifts like this can affect trade, diplomacy, and policy well beyond the countries directly involved.',
       'Sports': 'This matters to fans and stakeholders following how it could affect standings, contracts, or team strategy.',
       'India': 'This matters because it reflects developments in India that can shape policy, markets, or public discussion domestically and among the diaspora.',
     };
 
     const hi = {
-      'AI & Tech': 'यह खबर महत्वपूर्ण है क्योंकि यह दर्शाती है कि एआई और तकनीक कितनी तेज़ी से आगे बढ़ रही है, जिसका असर आने वाले टूल्स और प्लेटफॉर्म पर पड़ सकता है।',
+      'Tech': 'यह खबर महत्वपूर्ण है क्योंकि यह दर्शाती है कि तकनीक कितनी तेज़ी से आगे बढ़ रही है, जिसका असर आने वाले टूल्स और प्लेटफॉर्म पर पड़ सकता है।',
+      'AI': 'यह खबर महत्वपूर्ण है क्योंकि यह दर्शाती है कि एआई की क्षमताएं कितनी तेज़ी से आगे बढ़ रही हैं, जिसका असर इससे बनने वाले टूल्स और नौकरियों पर पड़ सकता है।',
+      'Student': 'यह खबर छात्रों और करियर की शुरुआत करने वालों के लिए महत्वपूर्ण है, क्योंकि इससे इस क्षेत्र में कौशल और अवसरों में बदलाव का पता चलता है।',
       'Startups': 'यह खबर स्टार्टअप्स से जुड़े संस्थापकों और शुरुआती निवेशकों के लिए महत्वपूर्ण है, क्योंकि इससे फंडिंग के रुझान का पता चलता है।',
-      'Markets': 'यह खबर महत्वपूर्ण है क्योंकि बाजार में इस तरह की हलचल का असर दूसरे क्षेत्रों और निवेश के फैसलों पर भी पड़ सकता है।',
       'Business': 'यह खबर महत्वपूर्ण है क्योंकि इससे पता चलता है कि एक बड़ी कंपनी अपनी रणनीति कैसे बदल रही है, जिसका असर प्रतिस्पर्धियों और ग्राहकों पर पड़ सकता है।',
       'Science': 'यह खबर महत्वपूर्ण है क्योंकि यह शोधकर्ताओं और नीति-निर्माताओं के लिए उपलब्ध जानकारी को और बढ़ाती है।',
-      'Geopolitics': 'यह खबर महत्वपूर्ण है क्योंकि इस तरह के बदलावों का असर व्यापार और कूटनीति पर सीधे जुड़े देशों से आगे भी पड़ सकता है।',
+      'World': 'यह खबर महत्वपूर्ण है क्योंकि इस तरह के बदलावों का असर व्यापार और कूटनीति पर सीधे जुड़े देशों से आगे भी पड़ सकता है।',
       'Sports': 'यह खबर उन प्रशंसकों और पक्षों के लिए महत्वपूर्ण है जो इसके नतीजों, अनुबंधों या टीम की रणनीति पर असर देख रहे हैं।',
       'India': 'यह खबर महत्वपूर्ण है क्योंकि इससे भारत में नीति, बाजार या सार्वजनिक चर्चा पर असर पड़ सकता है।',
     };
