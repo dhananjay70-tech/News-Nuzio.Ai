@@ -12,6 +12,7 @@ import Onboarding from './pages/Onboarding';
 import Home from './pages/Home';
 import Discover from './pages/Discover';
 import Saved from './pages/Saved';
+import NewsPulse from './pages/NewsPulse';
 import Settings from './pages/Settings';
 import MobileNav from './components/MobileNav';
 import MiniPlayer from './components/MiniPlayer';
@@ -69,6 +70,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Discover />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/news-pulse"
+                element={
+                  <ProtectedRoute>
+                    <NewsPulse />
                   </ProtectedRoute>
                 }
               />

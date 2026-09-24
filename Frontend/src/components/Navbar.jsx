@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePlayer } from '../context/PlayerContext';
 import { usePreferences } from '../context/PreferencesContext';
 import Logo from './Logo';
-import { Home, Compass, Bookmark, SlidersHorizontal, Settings, LogOut, Globe, ChevronDown } from 'lucide-react';
+import { Home, Compass, Bookmark, SlidersHorizontal, Settings, LogOut, Globe, ChevronDown, Radar } from 'lucide-react';
 
 const Navbar = () => {
   const { user, logout, updatePreferences } = useAuth();
@@ -73,27 +73,42 @@ const Navbar = () => {
           <div className="desktop-links" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <NavLink
               to="/home"
+              aria-label={t('home')}
+              title={t('home')}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
               <Home size={16} />
-              <span>{t('home')}</span>
+              <span className="nav-link-label">{t('home')}</span>
             </NavLink>
 
             <NavLink
               to="/discover"
+              aria-label={t('discover')}
+              title={t('discover')}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
               <Compass size={16} />
-              <span>{t('discover')}</span>
+              <span className="nav-link-label">{t('discover')}</span>
+            </NavLink>
+
+            <NavLink
+              to="/news-pulse"
+              aria-label={t('newsPulse')}
+              title={t('newsPulse')}
+              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+            >
+              <Radar size={16} />
+              <span className="nav-link-label">{t('newsPulse')}</span>
             </NavLink>
 
             <NavLink
               to="/saved"
+              aria-label={t('saved')}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               title={`${savedStoryIds.length} stories bookmarked`}
             >
               <Bookmark size={16} fill={savedStoryIds.length > 0 ? '#7657FF' : 'none'} />
-              <span>{t('saved')}</span>
+              <span className="nav-link-label">{t('saved')}</span>
               {savedStoryIds.length > 0 && (
                 <span
                   style={{

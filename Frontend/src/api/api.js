@@ -374,4 +374,102 @@ export const newsAPI = {
   },
 };
 
+// --- News Pulse (topic clusters, timeline, ingestion) ---
+// Served by the Node backend's /api/news-pulse gateway. The frontend only ever
+// talks to Node - never to the Python AI service directly. The gateway forwards
+// the AI service's raw JSON (snake_case, no { success, data } envelope).
+
+const normalizePulseArticle = (a) => ({
+  id: a.id,
+  title: a.title || '',
+  description: a.description || '',
+  url: a.url || '',
+  source: a.source || '',
+  publishedAt: a.published_at || null,
+  clusterId: a.cluster_id ?? null,
+  clusterLabel: a.cluster_label || '',
+});
+
+const normalizePulseJob = (j) => ({
+  jobId: j.job_id,
+  status: j.status,
+  startedAt: j.started_at || null,
+  completedAt: j.completed_at || null,
+  articlesFetched: j.articles_fetched || 0,
+  articlesInserted: j.articles_inserted || 0,
+  articlesSkipped: j.articles_skipped || 0,
+  clustersCreated: j.clusters_created || 0,
+  error: j.error || null,
+});
+
+export const newsPulseAPI = {
+  // The service returns only the newest 100 clusters unless a larger `limit`
+  // (max 500) is requested.
+  getClusters: async ({ limit } = {}, { signal } = {}) => {
+    const response = await api.get('/news-pulse/clusters', { params: { limit: limit || undefined }, signal });
+    const data = response.data || {};
+    return (data.clusters || []).map((c) => ({
+      id: c.id,
+      label: c.label || '',
+      articleCount: c.article_count || 0,
+      latestPublishedAt: c.latest_published_at || null,
+    }));
+  },
+
+  getCluster: async (id, { signal } = {}) => {
+    const response = await api.get(`/news-pulse/clusters/${encodeURIComponent(id)}`, { signal });
+    const data = response.data || {};
+    return {
+      id: data.id,
+      label: data.label || '',
+      articles: (data.articles || []).map(normalizePulseArticle),
+    };
+  },
+
+  // Filters map to the gateway's supported query parameters:
+  // source, cluster_id, from, to, limit. Empty values are omitted.
+  getTimeline: async ({ source, clusterId, from, to, limit } = {}, { signal } = {}) => {
+    const params = {
+      source: source || undefined,
+      cluster_id: clusterId || undefined,
+      from: from || undefined,
+      to: to || undefined,
+      limit: limit || undefined,
+    };
+    const response = await api.get('/news-pulse/timeline', { params, signal });
+    const data = response.data || {};
+    return (data.articles || []).map(normalizePulseArticle);
+  },
+
+  // Enqueues a background ingestion job; resolves right away with its id.
+  triggerIngestion: async () => {
+    const response = await api.post('/news-pulse/ingest/trigger');
+    const data = response.data || {};
+    return { jobId: data.job_id, status: data.status };
+  },
+
+  getIngestionStatus: async (jobId, { signal } = {}) => {
+    const response = await api.get(`/news-pulse/ingest/status/${encodeURIComponent(jobId)}`, { signal });
+    return normalizePulseJob(response.data || {});
+  },
+
+  // Narration audio for one article ("Listen"), generated on the server when
+  // first asked for and cached afterwards. Resolves { audioUrl, duration,
+  // cached }. Unlike newsAPI.generateAudio this rejects on failure, so the
+  // Listen button can show an error and offer a retry. Text-to-speech can take
+  // several seconds, so it gets a longer timeout than the default 10s.
+  getAudio: async ({ articleId, title, source, content, voice }, { signal } = {}) => {
+    const response = await api.post(
+      '/news-pulse/audio',
+      { articleId, title, source, content, voice },
+      { signal, timeout: 40000 }
+    );
+    const data = response.data || {};
+    if (typeof data.audioUrl !== 'string' || !data.audioUrl) {
+      throw new Error('News Pulse audio response had no audioUrl');
+    }
+    return { audioUrl: data.audioUrl, duration: data.duration ?? null, cached: Boolean(data.cached) };
+  },
+};
+
 export default api;

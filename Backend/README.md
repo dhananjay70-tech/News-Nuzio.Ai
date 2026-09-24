@@ -437,6 +437,144 @@ Get all saved articles for the user (requires authentication)
 }
 ```
 
+## News Pulse (AI news intelligence gateway)
+
+News Pulse (topic clusters, timeline, RSS ingestion) is computed by a separate
+Python FastAPI service in [`../Ai_Service`](../Ai_Service/README.md). This backend
+is the **API gateway** in front of it - the React app only ever talks to Node:
+
+```
+React
+ ↓
+Node API            (this backend, /api/news-pulse/*)
+ ↓
+Python AI Service   (FastAPI, Ai_Service)
+ ↓
+PostgreSQL
+```
+
+The Node side is a thin proxy (`services/newsPulse.service.js` →
+`controllers/newsPulse.controller.js` → `routes/newsPulse.routes.js`). It reuses
+this app's CORS and rate-limit configuration and does not touch the database.
+The one exception is the article audio endpoint ("Listen", below), which needs a
+signed-in user and uses the existing TTS setup.
+
+### Configuration
+
+```env
+AI_SERVICE_URL=http://localhost:8000   # deployed FastAPI URL in production
+AI_SERVICE_TIMEOUT_MS=10000            # optional, default 10000
+AI_SERVICE_TRIGGER_TIMEOUT_MS=5000     # optional, default 5000 (ingest trigger only)
+```
+
+### Endpoints
+
+Responses are the FastAPI JSON bodies forwarded unchanged. These routes are
+not behind `requireAuth` (`POST /api/news-pulse/audio`, below, is).
+
+| Node endpoint | Forwards to (FastAPI) |
+| --- | --- |
+| `GET /api/news-pulse/clusters?limit=` | `GET /clusters` (same `limit`) |
+| `GET /api/news-pulse/clusters/:id` | `GET /clusters/{id}` |
+| `GET /api/news-pulse/timeline?source=&cluster_id=&from=&to=&limit=` | `GET /timeline` (same query parameters) |
+| `POST /api/news-pulse/ingest/trigger` | `POST /ingest/trigger` |
+| `GET /api/news-pulse/ingest/status/:jobId` | `GET /ingest/status/{jobId}` |
+
+`ingest/trigger` returns immediately with `{ "job_id": "...", "status": "QUEUED" }`;
+ingestion runs in the background in Python, so poll `ingest/status/:jobId` until
+`status` is `COMPLETED` (or `FAILED`; `error` then holds the reason). A full
+ingestion (5 feeds, ~100 articles) took about 4.5 minutes in testing, and the
+`/api/` rate limit is 100 requests per 15 minutes per IP (shared with every
+other API call), so poll every 10 seconds or so, not every second or two.
+
+`clusters` returns the newest 100 clusters by default; pass `limit` (up to 500, which
+covers every cluster) to get more. `:id` must be a positive integer and `:jobId` up to 64 letters, digits, `-` or
+`_`; anything else is rejected with `400` without calling Python. Only the
+parameters listed above are forwarded (values are URL-encoded; unknown or
+empty ones are dropped, and FastAPI's 400 is returned for bad `limit`/dates).
+
+### Listen (article audio)
+
+`POST /api/news-pulse/audio` (requires `Authorization: Bearer <token>`) returns
+narration audio for one article. The frontend calls it **only when the user clicks
+Listen** - nothing is generated during ingestion or page load.
+
+```json
+{ "articleId": 230, "title": "...", "source": "TechCrunch", "content": "description text", "voice": "Aria" }
+```
+
+`articleId` and `title` are required; `voice` is a narrator persona (`Aria`, `Kai`
+or `Meera`; anything else means `Aria`). The response is
+`{ "audioUrl": "...", "duration": 15, "cached": false }`, and the player plays
+`audioUrl` like any other Nuzio audio.
+
+It reuses the TTS provider, voices, `TTS_PROVIDER`/`TTS_API_KEY` settings and
+`public/audio` directory behind `POST /api/news/:id/audio` (`AudioService`). It
+needs its own route only because that endpoint looks the article up in the
+`NewsArticle` table, while Pulse articles live in the AI service's database.
+For the same reason results can't go in `AudioAsset` (its `articleId` references
+`NewsArticle`), so audio is cached on disk as `public/audio/pulse-<hash>.mp3`,
+where the hash covers the article id, voice and narration text: the same article
+in the same voice is synthesized once, across requests and restarts, with no
+schema change. Simultaneous requests share one provider call.
+
+The narration is the headline, "From `<source>`.", then `content`, with markup
+stripped and capped at 1200 characters (TTS is billed per character). If no
+provider is configured or generation fails (for example an exhausted ElevenLabs
+quota), the endpoint returns `503` with code `AUDIO_UNAVAILABLE`, caches nothing,
+and the frontend shows "Try again".
+
+### Errors
+
+Failures return `{ "success": false, "error": "...", "message": "...", "code": "..." }`
+(`error` and `message` carry the same text). Python details, stack traces,
+file paths and connection strings are never returned - they are logged server-side.
+
+| Situation | Status | `error` |
+| --- | --- | --- |
+| Python unreachable / connection refused or reset | `503` | News intelligence service unavailable |
+| No reply within the timeout | `504` | News intelligence service timed out |
+| Python `404` | `404` | Cluster not found / Ingestion job not found |
+| Python `400` (e.g. bad date) | `400` | Python's client-facing detail |
+| Invalid `:id` / `:jobId` / repeated query param | `400` | Invalid cluster id / Invalid job id / Invalid query parameter: `<name>` |
+| Python `5xx`, or a non-JSON reply | `502` | News intelligence service error / returned an invalid response |
+| Audio request missing/invalid `articleId` or `title` | `400` | Invalid audio request |
+| No TTS provider configured, or generation failed | `503` | Audio is unavailable right now |
+
+### Running both services locally
+
+```powershell
+# 1. Python AI service (http://localhost:8000)
+cd Ai_Service
+.\venv\Scripts\Activate.ps1
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 2. Node backend (http://localhost:5000) - in a second terminal
+cd Backend
+npm run dev
+```
+
+Then, for example:
+
+```powershell
+curl http://localhost:5000/api/news-pulse/clusters
+curl "http://localhost:5000/api/news-pulse/timeline?source=BBC%20News&limit=20"
+curl -X POST http://localhost:5000/api/news-pulse/ingest/trigger
+curl http://localhost:5000/api/news-pulse/ingest/status/<job_id>
+```
+
+### Tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in test runner (no extra dependency). A fake FastAPI server is
+started in-process, so the tests need neither the Python service, the database,
+nor live RSS access. The audio tests (`tests/newsPulse.audio.test.js`) run in a
+temp directory with the ElevenLabs call faked, so they never use a real TTS key or
+write to the real `public/audio`.
+
 ## Personalization Algorithm
 
 The backend uses a simple transparent scoring algorithm:

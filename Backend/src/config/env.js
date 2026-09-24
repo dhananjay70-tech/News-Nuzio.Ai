@@ -3,6 +3,13 @@ dotenv.config();
 
 const port = parseInt(process.env.PORT || '5000', 10);
 
+// Parse a positive integer env var, falling back when unset or malformed
+// (a NaN timeout would silently disable axios' timeout).
+const positiveInt = (value, fallback) => {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 export const config = {
   PORT: port,
   NODE_ENV: process.env.NODE_ENV || 'development',
@@ -36,6 +43,14 @@ export const config = {
 
   // CORS
   FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:5173',
+
+  // Python FastAPI AI Service (News Pulse). Node is the gateway; the React
+  // frontend never calls this URL directly. Timeouts are in milliseconds:
+  // the trigger call gets a tighter budget because FastAPI only enqueues the
+  // ingestion job (it doesn't wait for it), so a slow reply means trouble.
+  AI_SERVICE_URL: process.env.AI_SERVICE_URL || 'http://localhost:8000',
+  AI_SERVICE_TIMEOUT_MS: positiveInt(process.env.AI_SERVICE_TIMEOUT_MS, 10000),
+  AI_SERVICE_TRIGGER_TIMEOUT_MS: positiveInt(process.env.AI_SERVICE_TRIGGER_TIMEOUT_MS, 5000),
 };
 
 export default config;

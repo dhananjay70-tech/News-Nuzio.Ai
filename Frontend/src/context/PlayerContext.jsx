@@ -51,9 +51,11 @@ export const PlayerProvider = ({ children }) => {
 
   // Report how far a story got played, so "Continue listening" and the
   // skip/listened personalization signals reflect real playback rather
-  // than a single fire-and-forget ping at start.
+  // than a single fire-and-forget ping at start. Skipped for `isExternal`
+  // stories (News Pulse): they aren't Nuzio articles, so there is no
+  // listen history to update.
   const reportProgress = useCallback((story, completedOverride) => {
-    if (!story?.id) return;
+    if (!story?.id || story.isExternal) return;
     const dur = durationRef.current;
     const cur = currentTimeRef.current;
     const progress = dur > 0 ? Math.min(100, Math.round((cur / dur) * 100)) : 0;
@@ -340,13 +342,13 @@ export const PlayerProvider = ({ children }) => {
     resumeProgressRef.current = story.progress || 0;
 
     // Notify backend that this story has started
-    if (story.id) {
+    if (story.id && !story.isExternal) {
       newsAPI.markListened(story.id, { progress: 0, completed: false });
     }
 
     if (story.audioUrl) {
       playAudioUrl(story, story.audioUrl);
-    } else if (story.id) {
+    } else if (story.id && !story.isExternal) {
       // Ask the backend for real TTS audio (cached if already generated for
       // this article/language/voice combination). If no provider is
       // configured or generation fails, it resolves with a null audioUrl

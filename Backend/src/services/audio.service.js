@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import axios from 'axios';
 import { and, eq } from 'drizzle-orm';
 import db from '../config/database.js';
@@ -38,6 +39,20 @@ function resolveVoiceSettings(voiceName) {
   return PERSONA_VOICE_SETTINGS[voiceName] || PERSONA_VOICE_SETTINGS.Aria;
 }
 
+// Narrator persona name for callers that pass free-form input: unknown values
+// collapse to Aria so they can't mint unbounded cache entries.
+function resolveVoiceName(voiceName) {
+  return Object.hasOwn(PERSONA_VOICE_IDS, voiceName) ? voiceName : 'Aria';
+}
+
+function isNonEmptyFile(filePath) {
+  try {
+    return fs.statSync(filePath).size > 0;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Rough spoken-duration estimate (seconds) from script text, since the raw
  * TTS response is just audio bytes with no duration metadata attached.
@@ -49,8 +64,10 @@ function estimateSpokenDuration(text) {
 }
 
 /**
- * TTS provider adapters. Each takes (script, language, voiceName) and
- * resolves to { audioUrl, duration } or null.
+ * TTS provider adapters. Each takes (script, language, voiceName, filename?)
+ * and resolves to { audioUrl, duration } or null. `filename`, when given, is
+ * the exact name to store the audio under (used for content-addressed
+ * caching); otherwise a unique name is generated.
  */
 const providers = {
   /**
@@ -59,7 +76,7 @@ const providers = {
    * "sounds like an Indian presenter, not an English speaker reading Hindi"
    * requirement.
    */
-  elevenlabs: async (script, language, voiceName) => {
+  elevenlabs: async (script, language, voiceName, filename) => {
     const voiceId = await resolveElevenLabsVoiceId(voiceName);
     if (!voiceId) return null;
 
@@ -82,22 +99,22 @@ const providers = {
     );
 
     fs.mkdirSync(AUDIO_DIR, { recursive: true });
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
-    fs.writeFileSync(path.join(AUDIO_DIR, filename), response.data);
+    const storedName = filename || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
+    fs.writeFileSync(path.join(AUDIO_DIR, storedName), response.data);
 
     return {
-      audioUrl: `${config.BACKEND_URL}/audio/${filename}`,
+      audioUrl: `${config.BACKEND_URL}/audio/${storedName}`,
       duration: estimateSpokenDuration(script),
     };
   },
 
-  google: async (_script, _language, _voiceName) => {
+  google: async (_script, _language, _voiceName, _filename) => {
     // TODO: call Google Cloud Text-to-Speech (voice name e.g. "hi-IN-Wavenet-A")
     // using config.TTS_API_KEY, store the audio, and return { audioUrl, duration }.
     return null;
   },
 
-  azure: async (_script, _language, _voiceName) => {
+  azure: async (_script, _language, _voiceName, _filename) => {
     // TODO: call Azure Cognitive Services Speech using config.TTS_API_KEY,
     // store the audio, and return { audioUrl, duration }.
     return null;
@@ -105,6 +122,10 @@ const providers = {
 };
 
 export class AudioService {
+  // In-flight generations by filename, so simultaneous requests for the same
+  // audio share one provider call instead of each paying for their own.
+  pendingGenerations = new Map();
+
   /**
    * Cache-first audio lookup for one article/language/voice combination.
    * Returns null (never throws) when no provider is configured or
@@ -140,10 +161,45 @@ export class AudioService {
   }
 
   /**
+   * Cache-first audio for a script that has no NewsArticle row - News Pulse
+   * articles live in the AI service's own database, and AudioAsset rows must
+   * reference NewsArticle. The mp3 is cached on disk in the same public/audio
+   * directory under a name derived from a hash of the key/voice/script, so the
+   * same text in the same voice is never synthesized twice (across requests or
+   * restarts) and no schema change is needed. Returns null (never throws) when
+   * no provider is configured or generation fails.
+   */
+  async getOrGenerateCachedAudio({ namespace, key, script, language, voice }) {
+    const lang = language === 'hi' ? 'hi' : 'en';
+    const voiceName = resolveVoiceName(voice);
+    const digest = createHash('sha256').update([key, lang, voiceName, script].join('\n')).digest('hex').slice(0, 32);
+    const filename = `${namespace}-${digest}.mp3`;
+
+    if (isNonEmptyFile(path.join(AUDIO_DIR, filename))) {
+      return {
+        audioUrl: `${config.BACKEND_URL}/audio/${filename}`,
+        duration: estimateSpokenDuration(script),
+        cached: true,
+      };
+    }
+
+    let pending = this.pendingGenerations.get(filename);
+    if (!pending) {
+      pending = this.generateAudio(script, lang, voiceName, filename).finally(() => {
+        this.pendingGenerations.delete(filename);
+      });
+      this.pendingGenerations.set(filename, pending);
+    }
+
+    const generated = await pending;
+    return generated ? { audioUrl: generated.audioUrl, duration: generated.duration, cached: false } : null;
+  }
+
+  /**
    * Call the configured TTS provider. Never throws - a provider failure is
    * treated the same as "no provider configured".
    */
-  async generateAudio(script, language, voice) {
+  async generateAudio(script, language, voice, filename) {
     if (!config.TTS_PROVIDER || !config.TTS_API_KEY) return null;
 
     const provider = providers[config.TTS_PROVIDER];
@@ -153,7 +209,7 @@ export class AudioService {
     }
 
     try {
-      return await provider(script, language, voice);
+      return await provider(script, language, voice, filename);
     } catch (error) {
       const detail = error.response?.data
         ? Buffer.isBuffer(error.response.data)

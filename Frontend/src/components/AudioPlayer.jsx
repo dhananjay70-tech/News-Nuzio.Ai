@@ -180,21 +180,24 @@ const AudioPlayer = ({ className = '' }) => {
             ))}
           </div>
 
-          <button
-            onClick={() => toggleBookmark(currentStory.id)}
-            title={isSaved ? t('removeFromSaved') : t('saveStory')}
-            style={{
-              color: isSaved ? '#7657FF' : '#6F7383',
-              padding: '6px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <Bookmark size={20} fill={isSaved ? '#7657FF' : 'none'} />
-          </button>
+          {/* External stories (News Pulse) aren't Nuzio articles, so they can't be saved */}
+          {!currentStory.isExternal && (
+            <button
+              onClick={() => toggleBookmark(currentStory.id)}
+              title={isSaved ? t('removeFromSaved') : t('saveStory')}
+              style={{
+                color: isSaved ? '#7657FF' : '#6F7383',
+                padding: '6px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Bookmark size={20} fill={isSaved ? '#7657FF' : 'none'} />
+            </button>
+          )}
 
           {/* Queue (opens full-screen player + queue) */}
           <button

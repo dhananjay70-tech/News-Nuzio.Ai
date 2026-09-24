@@ -9,6 +9,7 @@ import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/user.routes.js';
 import newsRoutes from './routes/news.routes.js';
+import newsPulseRoutes from './routes/newsPulse.routes.js';
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/audio', express.static(path.resolve(process.cwd(), 'public', 'audio'))
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/news-pulse', newsPulseRoutes);
 
 // 404 handler for undefined routes
 app.use(notFoundHandler);

@@ -12,7 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "setup": "npm install && node src/db/seed.js"
+    "setup": "npm install && node src/db/seed.js",
+    "test": "node --test tests/newsPulse.gateway.test.js tests/newsPulse.audio.test.js"
   },
   "keywords": [
     "nuzio",

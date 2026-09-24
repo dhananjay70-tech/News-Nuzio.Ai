@@ -170,6 +170,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
   transition: all 0.2s ease;
   background: transparent;
   border: 1px solid transparent;
@@ -193,6 +194,39 @@ html, body {
   .desktop-links {
     display: none !important;
   }
+}
+
+/* Tablet: four labelled links plus the user controls no longer fit, which
+   pushed Settings / Sign out off-screen. Links collapse to icons (names stay
+   available via aria-label/title) and the user's name/role text is hidden, as
+   it already is on mobile. */
+@media (min-width: 641px) and (max-width: 1023px) {
+  .nav-link-label {
+    display: none;
+  }
+  .nav-link {
+    padding: 8px 12px;
+  }
+  .user-text-info {
+    display: none !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 760px) {
+  .nav-link {
+    padding: 8px 10px;
+  }
+  .desktop-links {
+    gap: 2px !important;
+  }
+}
+
+/* A long name/role shouldn't be able to grow the navbar and wrap its links */
+.user-text-info > span {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Fixed bottom tab bar - mobile widths only, hidden on desktop/tablet where
@@ -419,4 +453,209 @@ button:disabled {
   background-size: 200% 100%;
   animation: shimmer 1.8s infinite;
   border-radius: 12px;
+}
+
+/* Spinner - Button's loading state and the refresh icons already reference
+   `spin` / .animate-spin, but neither was defined. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ---- News Pulse ---- */
+
+/* Timeline + topics: stacked on mobile/tablet (topics first), side by side on
+   desktop with the topics column sticky. */
+.pulse-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.pulse-topics-col {
+  order: -1;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .pulse-layout {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  .pulse-topics-col {
+    order: 0;
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 112px);
+    overflow-y: auto;
+  }
+}
+
+.pulse-clamp-2,
+.pulse-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pulse-clamp-2 {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.pulse-clamp-3 {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+/* Timeline rail: a vertical line per day with a dot at each article */
+.pulse-rail {
+  list-style: none;
+  margin-left: 6px;
+  padding-left: 20px;
+  border-left: 2px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pulse-item {
+  position: relative;
+  min-width: 0;
+}
+
+.pulse-item::before {
+  content: '';
+  position: absolute;
+  left: -26px;
+  top: 22px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px var(--bg-primary);
+}
+
+@media (max-width: 640px) {
+  .pulse-rail {
+    margin-left: 4px;
+    padding-left: 16px;
+  }
+
+  .pulse-item::before {
+    left: -22px;
+  }
+}
+
+.pulse-row {
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.pulse-row:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-light);
+}
+
+/* Topic detail drawer: right-hand panel on desktop/tablet, bottom sheet on mobile */
+.pulse-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(4, 3, 10, 0.6);
+  animation: pulse-fade-in 0.18s ease-out;
+}
+
+.pulse-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 101;
+  width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card-elevated);
+  border-left: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  animation: pulse-slide-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 640px) {
+  .pulse-drawer {
+    top: auto;
+    left: 0;
+    width: 100%;
+    max-height: 88vh;
+    border-left: none;
+    border-top: 1px solid var(--border-light);
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation-name: pulse-slide-up;
+  }
+}
+
+@keyframes pulse-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+/* Indeterminate progress bar for the running refresh (the API reports no percentage) */
+.pulse-progress {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border-subtle);
+}
+
+.pulse-progress::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 35%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), var(--accent-green));
+  animation: pulse-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-backdrop,
+  .pulse-drawer {
+    animation: none;
+  }
+
+  .pulse-progress::after {
+    animation-duration: 3s;
+  }
 }
