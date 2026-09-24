@@ -9,6 +9,13 @@ const MAX_NARRATION_CHARS = 1200;
 // strip any markup and collapse whitespace before it is read aloud.
 const clean = (value) => String(value ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
+// Cleaned text, or '' if it has no letters or digits (leftover punctuation or
+// markup isn't worth synthesizing).
+const speakable = (value) => {
+  const text = clean(value);
+  return /[\p{L}\p{N}]/u.test(text) ? text : '';
+};
+
 const endSentence = (text) => (/[.!?…]$/.test(text) ? text : `${text}.`);
 
 // Comparison form for "is the description just the headline again?"
@@ -29,31 +36,35 @@ const truncateAtBoundary = (text, max) => {
 /**
  * Narration script for one article: headline, "From <source>.", then the
  * description/summary - the same shape the player's browser-speech fallback
- * uses for other Nuzio stories.
+ * uses for other Nuzio stories. Returns '' when there is nothing to read
+ * aloud (no text, or only markup/punctuation) so the caller can reject the
+ * request instead of paying to synthesize silence.
  */
 export const buildNarration = ({ title, source, content }) => {
-  const headline = clean(title);
+  const headline = speakable(title);
   const outlet = clean(source);
-  const body = clean(content);
+  const body = speakable(content);
 
-  const parts = [endSentence(headline)];
-  if (outlet) parts.push(`From ${outlet}.`);
+  // The outlet name alone isn't an article, so it only rides along with text
+  const parts = [];
+  if (headline) parts.push(endSentence(headline));
+  if (outlet && (headline || body)) parts.push(`From ${outlet}.`);
   if (body && normalize(body) !== normalize(headline)) parts.push(body);
 
-  return truncateAtBoundary(parts.join(' '), MAX_NARRATION_CHARS);
+  return parts.length > 0 ? truncateAtBoundary(parts.join(' '), MAX_NARRATION_CHARS) : '';
 };
 
 /**
- * Audio for one News Pulse article, generated only when asked for and cached
- * on disk afterwards (see AudioService.getOrGenerateCachedAudio). Resolves
- * { audioUrl, duration, cached }, or null when no TTS provider is configured
- * or generation failed.
+ * Audio for one News Pulse article's narration script (see buildNarration),
+ * generated only when asked for and cached on disk afterwards (see
+ * AudioService.getOrGenerateCachedAudio). Resolves { audioUrl, duration,
+ * cached }; throws a TtsError saying why when no audio could be produced.
  */
-export const getPulseArticleAudio = ({ articleId, title, source, content, voice }) =>
+export const getPulseArticleAudio = ({ articleId, script, voice }) =>
   audioService.getOrGenerateCachedAudio({
     namespace: 'pulse',
     key: articleId,
-    script: buildNarration({ title, source, content }),
+    script,
     // Feeds are ingested in English, whatever language the UI is shown in.
     language: 'en',
     voice,

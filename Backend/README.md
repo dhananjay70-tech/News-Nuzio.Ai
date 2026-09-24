@@ -518,11 +518,46 @@ where the hash covers the article id, voice and narration text: the same article
 in the same voice is synthesized once, across requests and restarts, with no
 schema change. Simultaneous requests share one provider call.
 
+Environment variables (server-side only; see `.env.example`): `TTS_PROVIDER=elevenlabs`,
+`TTS_API_KEY`, and in production `BACKEND_URL` - this server's public https URL,
+used to build the audio file URLs the browser plays (`RENDER_EXTERNAL_URL` is used
+automatically on Render). Without `BACKEND_URL` in production the URLs point at
+localhost and playback fails even though generation works; the server logs a
+warning at startup if so.
+
 The narration is the headline, "From `<source>`.", then `content`, with markup
-stripped and capped at 1200 characters (TTS is billed per character). If no
-provider is configured or generation fails (for example an exhausted ElevenLabs
-quota), the endpoint returns `503` with code `AUDIO_UNAVAILABLE`, caches nothing,
-and the frontend shows "Try again".
+stripped and capped at 1200 characters (TTS is billed per character: about one
+ElevenLabs credit per character, once per article). A missing description is fine
+(the headline and source are read); an article with nothing to read is a `400`.
+
+Every failure has its own status and `code` instead of one blanket error, nothing
+is cached on failure, and the provider's own message (which can include account
+details) goes to the server log only, e.g.
+`[NewsPulse] audio for article 230 failed (quota_exceeded): elevenlabs HTTP 401: ... You have 70 credits remaining, while 248 credits are required`:
+
+| Status | `code` | Meaning |
+| --- | --- | --- |
+| `400` | `BAD_REQUEST` | Invalid body, or no article text to read aloud |
+| `401` | `UNAUTHORIZED` | Missing/invalid bearer token |
+| `503` | `TTS_NOT_CONFIGURED` | `TTS_PROVIDER`/`TTS_API_KEY` missing, unknown provider, or provider not implemented (the log says which) |
+| `503` | `TTS_QUOTA_EXCEEDED` | The provider account is out of credits / over its plan limit (ElevenLabs reports this as a `401` with `quota_exceeded`) |
+| `503` | `TTS_AUTH_FAILED` | The provider rejected the API key or its permissions |
+| `503` | `TTS_RATE_LIMITED` | The provider is throttling requests |
+| `502` | `TTS_UPSTREAM_ERROR` | Provider `5xx`, rejected request (e.g. bad voice), unreachable, or a reply that isn't audio |
+| `504` | `TTS_TIMEOUT` | The provider didn't answer within 30 seconds |
+| `500` | `TTS_STORAGE_ERROR` | Audio was generated but couldn't be written to `public/audio` |
+
+Server audio is the primary path. The frontend reacts to the codes like this:
+
+- `TTS_QUOTA_EXCEEDED` (out of credits): the article is read aloud by the
+  browser's own SpeechSynthesis through the same global player (title, source
+  and description). It logs one warning, then skips the server for 10 minutes -
+  no retry loop - and tries the server again after that (or after a page
+  reload).
+- Any other failure: a short message on the card ("Audio is temporarily
+  unavailable", "Couldn't prepare the audio", ...) with a "Try again" button,
+  and the `code` in the browser console. There is deliberately no browser-speech
+  fallback for these, so a misconfigured server isn't hidden.
 
 ### Errors
 
@@ -538,8 +573,9 @@ file paths and connection strings are never returned - they are logged server-si
 | Python `400` (e.g. bad date) | `400` | Python's client-facing detail |
 | Invalid `:id` / `:jobId` / repeated query param | `400` | Invalid cluster id / Invalid job id / Invalid query parameter: `<name>` |
 | Python `5xx`, or a non-JSON reply | `502` | News intelligence service error / returned an invalid response |
-| Audio request missing/invalid `articleId` or `title` | `400` | Invalid audio request |
-| No TTS provider configured, or generation failed | `503` | Audio is unavailable right now |
+| Audio request missing/invalid `articleId` or `title`, or nothing to read | `400` | Invalid audio request / There is no article text to read aloud |
+| Audio: TTS not configured / out of quota / bad credentials / throttled | `503` | see the table under "Listen" |
+| Audio: provider error / timeout / storage failure | `502` / `504` / `500` | see the table under "Listen" |
 
 ### Running both services locally
 

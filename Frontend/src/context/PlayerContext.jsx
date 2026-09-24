@@ -5,6 +5,10 @@ import { useSettings } from './SettingsContext';
 
 const PlayerContext = createContext(null);
 
+// How long a browser-speech utterance may go without starting (or reporting an
+// error) before it is treated as failed.
+const SPEECH_START_TIMEOUT_MS = 6000;
+
 export const PlayerProvider = ({ children }) => {
   const { user } = useAuth();
   const { autoAdvance, defaultSpeed } = useSettings();
@@ -15,6 +19,9 @@ export const PlayerProvider = ({ children }) => {
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRateState] = useState(defaultSpeed || 1);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  // Set when browser speech fails for a story ({ storyId, reason }), so the UI
+  // can say so instead of sitting on "loading"; cleared when playback moves on.
+  const [playbackError, setPlaybackError] = useState(null);
   const [savedStoryIds, setSavedStoryIds] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('nuzio_saved_stories') || '[]');
@@ -26,6 +33,7 @@ export const PlayerProvider = ({ children }) => {
   const audioElementRef = useRef(new Audio());
   const speechUtteranceRef = useRef(null);
   const speechIntervalRef = useRef(null);
+  const speechStartTimerRef = useRef(null);
   const playbackModeRef = useRef('speech'); // 'audio' or 'speech'
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
@@ -100,14 +108,14 @@ export const PlayerProvider = ({ children }) => {
   // Helper to resolve preferred speech synthesis voice
   const language = user?.preferences?.language || user?.language || 'en';
 
-  const getPreferredVoice = useCallback(() => {
+  const getPreferredVoice = useCallback((lang = language) => {
     if (!('speechSynthesis' in window)) return null;
     const voices = window.speechSynthesis.getVoices();
 
     // Hindi articles need a Hindi voice regardless of which narrator
     // persona is selected, since the persona names (Aria/Kai/Meera) are
     // just accents within a language, not language switches themselves.
-    if (language === 'hi') {
+    if (lang === 'hi') {
       // Try to find Hindi voice first, then fallback to any available voice
       const hindiVoice = voices.find((v) => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
       if (hindiVoice) {
@@ -163,6 +171,7 @@ export const PlayerProvider = ({ children }) => {
       if (speechIntervalRef.current) {
         clearInterval(speechIntervalRef.current);
       }
+      clearTimeout(speechStartTimerRef.current);
     };
   }, []);
 
@@ -224,19 +233,39 @@ export const PlayerProvider = ({ children }) => {
     };
   }, [currentStory, reportProgress, autoAdvance]);
 
+  // Stops any browser speech, and its progress/start timers. The utterance is
+  // detached first: a cancelled utterance reports "interrupted" (or "canceled")
+  // asynchronously, and by then its handlers must not touch the state of
+  // whatever started next - see startSpeechPlayback.
+  const cancelSpeech = useCallback(() => {
+    speechUtteranceRef.current = null;
+    clearInterval(speechIntervalRef.current);
+    clearTimeout(speechStartTimerRef.current);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
   // Speech Synthesis fallback playback
   const startSpeechPlayback = useCallback((story) => {
     if (!('speechSynthesis' in window)) {
       console.error('Speech synthesis not supported in this browser.');
+      setIsPlaying(false);
+      setIsLoadingAudio(false);
+      setPlaybackError({ storyId: story.id, reason: 'unsupported' });
       return;
     }
 
-    window.speechSynthesis.cancel();
-    if (speechIntervalRef.current) {
-      clearInterval(speechIntervalRef.current);
+    // One utterance at a time: whatever is speaking stops before this starts
+    cancelSpeech();
+    // Chrome keeps a paused engine paused across cancel(), and a paused
+    // engine queues new speech without ever speaking it.
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
     }
 
     playbackModeRef.current = 'speech';
+    setPlaybackError(null);
     const textToSpeak = `${story.title}. From ${story.source}. ${story.summary || ''}`;
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
 
@@ -248,17 +277,31 @@ export const PlayerProvider = ({ children }) => {
 
     // Article text/audio follows the user's selected language (the backend
     // already fetches Hindi articles for Hindi-preference users), so the
-    // browser TTS fallback must speak with a matching voice/lang too.
-    utterance.lang = language === 'hi' ? 'hi-IN' : 'en-US';
-    const voice = getPreferredVoice();
+    // browser TTS fallback must speak with a matching voice/lang too - unless
+    // the story says what language it is in (News Pulse articles are English
+    // whatever language the UI is shown in).
+    const speechLanguage = story.language || language;
+    utterance.lang = speechLanguage === 'hi' ? 'hi-IN' : 'en-US';
+    const voice = getPreferredVoice(speechLanguage);
     if (voice) {
       utterance.voice = voice;
     }
     utterance.rate = playbackRate;
 
+    // Only the utterance that currently owns the player may change its state.
+    // A cancelled one (switching stories, restarting at a new speed, StrictMode
+    // running an effect twice) can still report late, and must not flip the
+    // new playback to "stopped" or clear its progress timer.
+    const isCurrent = () => speechUtteranceRef.current === utterance;
+
     utterance.onstart = () => {
-      setIsPlaying(true);
+      if (!isCurrent()) return;
+      clearTimeout(speechStartTimerRef.current);
       setIsLoadingAudio(false);
+      // The user may have paused between speak() and the engine actually
+      // starting; don't report "playing" (or run the progress timer) then.
+      if (window.speechSynthesis.paused) return;
+      setIsPlaying(true);
 
       const startTime = Date.now();
       speechIntervalRef.current = setInterval(() => {
@@ -272,6 +315,8 @@ export const PlayerProvider = ({ children }) => {
     };
 
     utterance.onend = () => {
+      if (!isCurrent()) return;
+      clearTimeout(speechStartTimerRef.current);
       setIsPlaying(false);
       if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
       currentTimeRef.current = estDuration;
@@ -281,24 +326,37 @@ export const PlayerProvider = ({ children }) => {
     };
 
     utterance.onerror = (e) => {
+      if (!isCurrent()) return;
+      // cancel() - which this player calls whenever playback changes - is
+      // reported as 'interrupted' (or 'canceled'): expected, not a failure.
+      if (e.error === 'interrupted' || e.error === 'canceled') return;
       console.error('Speech synthesis error:', e);
-      setIsPlaying(false);
+      clearTimeout(speechStartTimerRef.current);
       if (speechIntervalRef.current) clearInterval(speechIntervalRef.current);
+      setIsPlaying(false);
+      setIsLoadingAudio(false);
+      setPlaybackError({ storyId: story.id, reason: e.error || 'error' });
     };
 
     speechUtteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
     setIsPlaying(true);
-  }, [playbackRate, getPreferredVoice, language, reportProgress, autoAdvance]);
+
+    // Some browsers accept speak() and then never start or report anything
+    // (no voices, no speech service): treat that as a failure, not "loading" forever.
+    speechStartTimerRef.current = setTimeout(() => {
+      if (!isCurrent()) return;
+      console.error(`Speech synthesis did not start within ${SPEECH_START_TIMEOUT_MS / 1000}s`);
+      cancelSpeech();
+      setIsPlaying(false);
+      setIsLoadingAudio(false);
+      setPlaybackError({ storyId: story.id, reason: 'no-start' });
+    }, SPEECH_START_TIMEOUT_MS);
+  }, [playbackRate, getPreferredVoice, language, reportProgress, autoAdvance, cancelSpeech]);
 
   // Play a real audio URL via the HTML5 <audio> element
   const playAudioUrl = useCallback((story, url) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    if (speechIntervalRef.current) {
-      clearInterval(speechIntervalRef.current);
-    }
+    cancelSpeech();
 
     playbackModeRef.current = 'audio';
     const audio = audioElementRef.current;
@@ -313,7 +371,7 @@ export const PlayerProvider = ({ children }) => {
         console.warn('Audio URL playback failed, falling back to speech synthesis:', err);
         startSpeechPlayback(story);
       });
-  }, [playbackRate, startSpeechPlayback]);
+  }, [playbackRate, startSpeechPlayback, cancelSpeech]);
 
   // Play a specific story. `newQueue`, when provided, replaces the queue -
   // an explicit user selection (NewsCard, Continue Listening, etc.), which
@@ -337,6 +395,7 @@ export const PlayerProvider = ({ children }) => {
     setCurrentStory(story);
     currentStoryIdRef.current = story.id;
     setIsLoadingAudio(true);
+    setPlaybackError(null);
     currentTimeRef.current = 0;
     durationRef.current = 0;
     resumeProgressRef.current = story.progress || 0;
@@ -392,26 +451,27 @@ export const PlayerProvider = ({ children }) => {
   // resuming it would speak/play the wrong language.
   const stopStory = useCallback(() => {
     audioElementRef.current.pause();
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    if (speechIntervalRef.current) {
-      clearInterval(speechIntervalRef.current);
-    }
+    cancelSpeech();
     currentStoryIdRef.current = null;
     briefingModeRef.current = false;
     setIsPlaying(false);
     setCurrentTime(0);
     setDuration(0);
     setCurrentStory(null);
-  }, []);
+    setPlaybackError(null);
+  }, [cancelSpeech]);
 
   // Pause playback
   const pauseStory = useCallback(() => {
     if (playbackModeRef.current === 'audio') {
       audioElementRef.current.pause();
     } else if ('speechSynthesis' in window) {
-      window.speechSynthesis.pause();
+      // Only pause an utterance that is actually being spoken. Pausing an idle
+      // engine (e.g. nextStory() at the end of a finished story) would leave it
+      // paused, and it would then swallow the next speak().
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+      }
       if (speechIntervalRef.current) {
         clearInterval(speechIntervalRef.current);
       }
@@ -513,6 +573,7 @@ export const PlayerProvider = ({ children }) => {
     duration,
     playbackRate,
     isLoadingAudio,
+    playbackError,
     savedStoryIds,
     toggleBookmark,
     playStory,

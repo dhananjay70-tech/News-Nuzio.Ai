@@ -145,4 +145,20 @@ export const pulseErrorMessage = (errorKind, t) => {
   return t('pulseServiceUnavailable');
 };
 
+// Classifies a failed Listen (audio) request so the card can say something
+// useful: 'noText' (400 - nothing to read), 'unavailable' (503 - server audio
+// isn't configured, is out of quota or is throttled, so retrying right away
+// won't help), or 'failed' (timeout, provider error, network...).
+export const classifyListenError = (err) => {
+  const status = err?.response?.status;
+  if (status === 400) return 'noText';
+  if (status === 503) return 'unavailable';
+  return 'failed';
+};
+
+// True when the backend says server-side text-to-speech is out of credits
+// (503 TTS_QUOTA_EXCEEDED) - the one Listen failure with a browser-speech fallback.
+export const isTtsQuotaError = (err) =>
+  err?.response?.status === 503 && err.response.data?.code === 'TTS_QUOTA_EXCEEDED';
+
 export const isCanceledRequest = (err) => err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError';

@@ -64,10 +64,72 @@ function estimateSpokenDuration(text) {
 }
 
 /**
+ * A text-to-speech failure with a machine-readable `kind`, so callers that need
+ * to tell "not configured" from "out of quota" from "timed out" can (the News
+ * Pulse endpoint gives each its own HTTP status). Kinds:
+ *   not_configured - TTS_PROVIDER / TTS_API_KEY missing, or provider not implemented
+ *   quota_exceeded - the provider account is out of credits / over its plan limit
+ *   auth_failed    - the provider rejected the API key or its permissions
+ *   rate_limited   - the provider is throttling us (HTTP 429)
+ *   timeout        - the provider didn't answer in time
+ *   upstream_error - anything else from the provider: 5xx, a rejected request,
+ *                    unreachable, or a reply that isn't audio
+ *   storage_error  - the audio was generated but couldn't be saved to disk
+ * `message` is for server logs only: it can carry the provider's own detail.
+ */
+export class TtsError extends Error {
+  constructor(kind, message, options) {
+    super(message, options);
+    this.name = 'TtsError';
+    this.kind = kind;
+  }
+}
+
+// The provider's JSON error body (requested as an arraybuffer, so it arrives
+// as bytes) as { codes, message }. ElevenLabs reports the machine-readable
+// reason in `detail.status`/`detail.code` (e.g. "quota_exceeded").
+function readProviderError(error) {
+  const raw = error.response?.data;
+  if (raw == null) return { codes: [] };
+
+  const text = Buffer.isBuffer(raw) || raw instanceof ArrayBuffer ? Buffer.from(raw).toString('utf-8') : String(raw);
+  try {
+    const body = JSON.parse(text);
+    const detail = body.detail ?? body;
+    if (typeof detail === 'string') return { codes: [], message: detail };
+    return {
+      codes: [detail.status, detail.code].filter(Boolean).map((value) => String(value).toLowerCase()),
+      message: detail.message,
+    };
+  } catch {
+    return { codes: [], message: text.slice(0, 300) };
+  }
+}
+
+// Turn a raw provider (axios) failure into a TtsError. The body's reason code
+// is checked before the HTTP status: ElevenLabs answers "out of credits" with
+// a 401, which must not be mistaken for a bad API key.
+function toTtsError(error, providerName) {
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+    return new TtsError('timeout', `${providerName} did not respond in time`, { cause: error });
+  }
+
+  const status = error.response?.status;
+  const { codes, message } = readProviderError(error);
+  const detail = `${providerName} HTTP ${status ?? error.code ?? 'error'}${message ? `: ${message}` : ''}`;
+
+  if (codes.includes('quota_exceeded') || status === 402) return new TtsError('quota_exceeded', detail, { cause: error });
+  if (status === 401 || status === 403) return new TtsError('auth_failed', detail, { cause: error });
+  if (status === 429) return new TtsError('rate_limited', detail, { cause: error });
+  return new TtsError('upstream_error', detail, { cause: error });
+}
+
+/**
  * TTS provider adapters. Each takes (script, language, voiceName, filename?)
- * and resolves to { audioUrl, duration } or null. `filename`, when given, is
- * the exact name to store the audio under (used for content-addressed
- * caching); otherwise a unique name is generated.
+ * and resolves to { audioUrl, duration } (or null if the provider isn't
+ * implemented), throwing on failure. `filename`, when given, is the exact name
+ * to store the audio under (used for content-addressed caching); otherwise a
+ * unique name is generated.
  */
 const providers = {
   /**
@@ -98,9 +160,24 @@ const providers = {
       }
     );
 
-    fs.mkdirSync(AUDIO_DIR, { recursive: true });
+    // A 200 that isn't audio (an HTML error page from a proxy, an empty body)
+    // must not be saved and cached as if it were.
+    const audio = Buffer.from(response.data);
+    const contentType = response.headers?.['content-type'];
+    if (audio.length === 0 || (contentType && !/^audio\//i.test(contentType))) {
+      throw new TtsError(
+        'upstream_error',
+        `ElevenLabs returned no playable audio (content-type: ${contentType || 'none'}, ${audio.length} bytes)`
+      );
+    }
+
     const storedName = filename || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
-    fs.writeFileSync(path.join(AUDIO_DIR, storedName), response.data);
+    try {
+      fs.mkdirSync(AUDIO_DIR, { recursive: true });
+      fs.writeFileSync(path.join(AUDIO_DIR, storedName), audio);
+    } catch (error) {
+      throw new TtsError('storage_error', `Could not save generated audio to ${AUDIO_DIR}: ${error.message}`, { cause: error });
+    }
 
     return {
       audioUrl: `${config.BACKEND_URL}/audio/${storedName}`,
@@ -166,8 +243,9 @@ export class AudioService {
    * reference NewsArticle. The mp3 is cached on disk in the same public/audio
    * directory under a name derived from a hash of the key/voice/script, so the
    * same text in the same voice is never synthesized twice (across requests or
-   * restarts) and no schema change is needed. Returns null (never throws) when
-   * no provider is configured or generation fails.
+   * restarts) and no schema change is needed. Unlike getOrGenerateAudio this
+   * throws a TtsError when audio can't be produced, so the caller can report
+   * why (nothing is cached on failure).
    */
   async getOrGenerateCachedAudio({ namespace, key, script, language, voice }) {
     const lang = language === 'hi' ? 'hi' : 'en';
@@ -185,14 +263,37 @@ export class AudioService {
 
     let pending = this.pendingGenerations.get(filename);
     if (!pending) {
-      pending = this.generateAudio(script, lang, voiceName, filename).finally(() => {
+      pending = this.synthesize(script, lang, voiceName, filename).finally(() => {
         this.pendingGenerations.delete(filename);
       });
       this.pendingGenerations.set(filename, pending);
     }
 
     const generated = await pending;
-    return generated ? { audioUrl: generated.audioUrl, duration: generated.duration, cached: false } : null;
+    return { audioUrl: generated.audioUrl, duration: generated.duration, cached: false };
+  }
+
+  /**
+   * Call the configured TTS provider. Throws a TtsError (never a raw provider
+   * error) saying why it failed. generateAudio below is the never-throws
+   * variant the original Nuzio flow relies on.
+   */
+  async synthesize(script, language, voice, filename) {
+    const providerName = config.TTS_PROVIDER;
+    if (!providerName) throw new TtsError('not_configured', 'TTS_PROVIDER is not set');
+    if (!config.TTS_API_KEY) throw new TtsError('not_configured', 'TTS_API_KEY is not set');
+    if (!Object.hasOwn(providers, providerName)) {
+      throw new TtsError('not_configured', `Unknown TTS_PROVIDER "${providerName}" (supported: ${Object.keys(providers).join(', ')})`);
+    }
+
+    let result;
+    try {
+      result = await providers[providerName](script, language, voice, filename);
+    } catch (error) {
+      throw error instanceof TtsError ? error : toTtsError(error, providerName);
+    }
+    if (!result) throw new TtsError('not_configured', `TTS_PROVIDER "${providerName}" is not implemented yet`);
+    return result;
   }
 
   /**
@@ -202,21 +303,10 @@ export class AudioService {
   async generateAudio(script, language, voice, filename) {
     if (!config.TTS_PROVIDER || !config.TTS_API_KEY) return null;
 
-    const provider = providers[config.TTS_PROVIDER];
-    if (!provider) {
-      console.warn(`Unknown TTS_PROVIDER "${config.TTS_PROVIDER}" - falling back to no audio`);
-      return null;
-    }
-
     try {
-      return await provider(script, language, voice, filename);
+      return await this.synthesize(script, language, voice, filename);
     } catch (error) {
-      const detail = error.response?.data
-        ? Buffer.isBuffer(error.response.data)
-          ? error.response.data.toString('utf-8')
-          : JSON.stringify(error.response.data)
-        : error.message;
-      console.warn('TTS generation failed, frontend will fall back to SpeechSynthesis:', detail);
+      console.warn('TTS generation failed, frontend will fall back to SpeechSynthesis:', error.message);
       return null;
     }
   }

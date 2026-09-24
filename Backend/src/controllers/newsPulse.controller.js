@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import newsPulseService, { NewsPulseError } from '../services/newsPulse.service.js';
-import { getPulseArticleAudio } from '../services/newsPulseAudio.service.js';
+import { buildNarration, getPulseArticleAudio } from '../services/newsPulseAudio.service.js';
+import { TtsError } from '../services/audio.service.js';
 
 // Postgres `integer` upper bound - cluster ids are serial ints in the AI service.
 const MAX_CLUSTER_ID = 2147483647;
@@ -19,6 +20,22 @@ const audioRequestSchema = z.object({
   content: z.string().max(10000).optional(),
   voice: z.string().trim().max(50).optional(),
 });
+
+// What POST /audio tells the client for each way text-to-speech can fail:
+// [status, message, code]. The messages are fixed and safe to show; the
+// provider's own detail (account/quota specifics, missing variable names) is
+// only ever logged. 503 = unavailable/unconfigured on our side, 502 = the
+// provider misbehaved, 504 = it didn't answer in time.
+const TTS_FAILURES = {
+  not_configured: [503, 'Audio is not configured on the server', 'TTS_NOT_CONFIGURED'],
+  quota_exceeded: [503, 'The audio service has reached its usage limit', 'TTS_QUOTA_EXCEEDED'],
+  auth_failed: [503, 'The audio service rejected the server credentials', 'TTS_AUTH_FAILED'],
+  rate_limited: [503, 'The audio service is busy, please try again shortly', 'TTS_RATE_LIMITED'],
+  timeout: [504, 'The audio service timed out', 'TTS_TIMEOUT'],
+  upstream_error: [502, 'The audio service returned an error', 'TTS_UPSTREAM_ERROR'],
+  storage_error: [500, 'Generated audio could not be saved', 'TTS_STORAGE_ERROR'],
+};
+
 const CLUSTER_FILTERS = ['limit'];
 const TIMELINE_FILTERS = ['source', 'cluster_id', 'from', 'to', 'limit'];
 
@@ -93,14 +110,28 @@ export class NewsPulseController {
    * FastAPI passthrough: Pulse articles have no NewsArticle row, so the
    * existing POST /api/news/:id/audio can't serve them, but the TTS provider,
    * voices and audio directory are the same ones it uses.
+   *
+   * 200 { audioUrl, duration, cached } | 400 invalid request or nothing to
+   * read | 503 TTS not configured / out of quota / bad credentials /
+   * throttled | 502 provider error | 504 provider timeout. Each failure
+   * carries its own `code` (TTS_*), and the reason is logged server-side.
    */
   getAudio = forward(async (req) => {
     const parsed = audioRequestSchema.safeParse(req.body);
     if (!parsed.success) throw badRequest('Invalid audio request');
 
-    const audio = await getPulseArticleAudio(parsed.data);
-    if (!audio) throw new NewsPulseError(503, 'Audio is unavailable right now', 'AUDIO_UNAVAILABLE');
-    return audio;
+    const { articleId, voice } = parsed.data;
+    const script = buildNarration(parsed.data);
+    if (!script) throw badRequest('There is no article text to read aloud');
+
+    try {
+      return await getPulseArticleAudio({ articleId, script, voice });
+    } catch (err) {
+      if (!(err instanceof TtsError)) throw err;
+      console.error(`[NewsPulse] audio for article ${articleId} failed (${err.kind}): ${err.message}`);
+      const [status, message, code] = TTS_FAILURES[err.kind] || TTS_FAILURES.upstream_error;
+      throw new NewsPulseError(status, message, code);
+    }
   });
 }
 

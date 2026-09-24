@@ -3,6 +3,14 @@ import { AlertTriangle, ExternalLink, Loader2, Volume2 } from 'lucide-react';
 import { usePreferences } from '../context/PreferencesContext';
 import { safeExternalUrl } from '../utils/newsPulse';
 
+// Inline message for a failed Listen, by classifyListenError() kind
+const LISTEN_ERROR_KEYS = {
+  noText: 'pulseListenNoText',
+  unavailable: 'pulseListenUnavailable',
+  speech: 'pulseListenSpeechFailed',
+  failed: 'pulseListenFailed',
+};
+
 const LISTEN_STYLES = {
   idle: { color: 'var(--primary)', background: 'rgba(124, 92, 255, 0.1)', border: '1px solid var(--border-active)' },
   loading: { color: 'var(--primary)', background: 'rgba(124, 92, 255, 0.1)', border: '1px solid var(--border-active)' },
@@ -86,7 +94,7 @@ const PulseArticleActions = ({ article, listen, marginTop }) => {
       <div aria-live="polite" data-testid="listen-status">
         {(state === 'loading' || state === 'error') && (
           <p style={{ fontSize: '12px', marginTop: '8px', color: state === 'error' ? '#FCA5A5' : 'var(--text-secondary)' }}>
-            {state === 'error' ? t('pulseListenFailed') : t('pulsePreparingAudio')}
+            {state === 'error' ? t(LISTEN_ERROR_KEYS[listen.errorKindFor(article.id)] || 'pulseListenFailed') : t('pulsePreparingAudio')}
           </p>
         )}
       </div>

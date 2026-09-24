@@ -93,11 +93,15 @@ beforeEach(() => {
   config.TTS_PROVIDER = 'elevenlabs';
   config.TTS_API_KEY = 'test-tts-key';
 
+  // ttsBehavior returns audio bytes (wrapped as a real ElevenLabs reply, which
+  // is audio/mpeg), or a full { data, headers } reply, or throws.
   mock.method(axios, 'post', async (url, body, options) => {
     ttsCalls.push({ url, body, headers: options?.headers });
-    return { data: await ttsBehavior() };
+    const result = await ttsBehavior();
+    return Buffer.isBuffer(result) ? { data: result, headers: { 'content-type': 'audio/mpeg' } } : result;
   });
   mock.method(console, 'warn', (...args) => errorLog.push(inspect(args, { depth: 4 })));
+  mock.method(console, 'error', (...args) => errorLog.push(inspect(args, { depth: 4 })));
 });
 
 afterEach(() => {
@@ -185,36 +189,6 @@ describe('POST /api/news-pulse/audio (Listen)', () => {
     assert.equal(ttsCalls.length, 1);
   });
 
-  it('returns a client-safe 503 when the provider fails, leaves nothing cached, and succeeds on retry', async () => {
-    ttsBehavior = async () => {
-      throw new Error('quota_exceeded: secret upstream detail');
-    };
-
-    const failed = await post('/direct/audio', article());
-    const failedBody = await failed.json();
-
-    assert.equal(failed.status, 503);
-    assert.equal(failedBody.error, 'Audio is unavailable right now');
-    assert.equal(failedBody.code, 'AUDIO_UNAVAILABLE');
-    assert.ok(!JSON.stringify(failedBody).includes('secret upstream detail'));
-    assert.equal(audioFiles().length, 0);
-
-    ttsBehavior = async () => Buffer.from('fake-mp3-bytes');
-    const retried = await post('/direct/audio', article());
-
-    assert.equal(retried.status, 200);
-    assert.equal(ttsCalls.length, 2);
-  });
-
-  it('returns 503 without calling any provider when TTS is not configured', async () => {
-    config.TTS_API_KEY = '';
-
-    const res = await post('/direct/audio', article());
-
-    assert.equal(res.status, 503);
-    assert.equal(ttsCalls.length, 0);
-  });
-
   it('rejects malformed requests with 400 and never calls the provider', async () => {
     const bad = [
       undefined, // no body
@@ -233,11 +207,189 @@ describe('POST /api/news-pulse/audio (Listen)', () => {
     assert.equal(ttsCalls.length, 0);
   });
 
+  it('rejects an article with nothing to read aloud (400) instead of paying to synthesize silence', async () => {
+    for (const body of [article({ title: '<b></b>', content: '' }), article({ title: '!!! ...', content: '<p> </p>' })]) {
+      const res = await post('/direct/audio', body);
+      assert.equal(res.status, 400);
+      assert.equal((await res.json()).error, 'There is no article text to read aloud');
+    }
+    assert.equal(ttsCalls.length, 0);
+  });
+
+  it('handles an article with no description: reads the headline and source', async () => {
+    const res = await post('/direct/audio', article({ content: undefined }));
+
+    assert.equal(res.status, 200);
+    assert.equal(ttsCalls[0].body.text, "Google Photos 'Clueless'-inspired virtual closet is now available. From TechCrunch.");
+  });
+
+  it('handles a bare headline (no source, no description)', async () => {
+    const res = await post('/direct/audio', { articleId: 7, title: 'Short headline' });
+
+    assert.equal(res.status, 200);
+    assert.equal(ttsCalls[0].body.text, 'Short headline.');
+  });
+
   it('requires a signed-in user on the real route', async () => {
     const res = await post('/api/news-pulse/audio', article());
 
     assert.equal(res.status, 401);
     assert.equal(ttsCalls.length, 0);
+  });
+});
+
+// Each way TTS can fail gets its own status and code, never a blanket 503, and
+// the provider's own words stay in the server log.
+describe('POST /api/news-pulse/audio failures', () => {
+  const providerError = (status, detail) =>
+    Object.assign(new Error(`Request failed with status code ${status}`), {
+      isAxiosError: true,
+      response: { status, data: Buffer.from(JSON.stringify({ detail })) },
+    });
+  const failWith = (error) => {
+    ttsBehavior = async () => {
+      throw error;
+    };
+  };
+  const expectFailure = async (status, code, message) => {
+    const res = await post('/direct/audio', article());
+    const body = await res.json();
+    assert.equal(res.status, status);
+    assert.equal(body.code, code);
+    assert.equal(body.success, false);
+    if (message) assert.equal(body.error, message);
+    return body;
+  };
+
+  it('503 TTS_QUOTA_EXCEEDED when the account is out of credits - even though ElevenLabs sends it as a 401', async () => {
+    failWith(
+      providerError(401, {
+        type: 'invalid_request',
+        code: 'quota_exceeded',
+        status: 'quota_exceeded',
+        message: 'This request exceeds your quota of 10000. You have 70 credits remaining, while 112 credits are required.',
+      })
+    );
+
+    const body = await expectFailure(503, 'TTS_QUOTA_EXCEEDED', 'The audio service has reached its usage limit');
+
+    // The client is told what happened, not the account specifics; the log has them.
+    assert.ok(!JSON.stringify(body).includes('70 credits'));
+    assert.ok(errorLog.some((line) => line.includes('quota_exceeded') && line.includes('70 credits remaining')));
+  });
+
+  it('503 TTS_QUOTA_EXCEEDED for a 402 (plan limit)', async () => {
+    failWith(providerError(402, { status: 'paid_plan_required', message: 'Free users cannot use library voices via the API' }));
+    await expectFailure(503, 'TTS_QUOTA_EXCEEDED');
+  });
+
+  it('503 TTS_AUTH_FAILED for a rejected API key', async () => {
+    failWith(providerError(401, { status: 'invalid_api_key', message: 'Invalid API key' }));
+    await expectFailure(503, 'TTS_AUTH_FAILED', 'The audio service rejected the server credentials');
+  });
+
+  it('503 TTS_AUTH_FAILED for a key without the needed permission (403)', async () => {
+    failWith(providerError(403, { status: 'missing_permissions', message: 'missing text_to_speech permission' }));
+    await expectFailure(503, 'TTS_AUTH_FAILED');
+  });
+
+  it('503 TTS_RATE_LIMITED when the provider throttles', async () => {
+    failWith(providerError(429, { status: 'too_many_concurrent_requests', message: 'slow down' }));
+    await expectFailure(503, 'TTS_RATE_LIMITED');
+  });
+
+  it('504 TTS_TIMEOUT when the provider does not answer in time', async () => {
+    failWith(Object.assign(new Error('timeout of 30000ms exceeded'), { isAxiosError: true, code: 'ECONNABORTED' }));
+    await expectFailure(504, 'TTS_TIMEOUT', 'The audio service timed out');
+  });
+
+  it('502 TTS_UPSTREAM_ERROR for a provider 5xx', async () => {
+    failWith(providerError(500, { message: 'internal error' }));
+    await expectFailure(502, 'TTS_UPSTREAM_ERROR', 'The audio service returned an error');
+  });
+
+  it('502 TTS_UPSTREAM_ERROR when the request itself is rejected (e.g. an invalid voice, 400/422)', async () => {
+    failWith(providerError(422, { status: 'voice_not_found', message: 'A voice with the voice_id was not found' }));
+    await expectFailure(502, 'TTS_UPSTREAM_ERROR');
+  });
+
+  it('502 TTS_UPSTREAM_ERROR when the provider is unreachable', async () => {
+    failWith(Object.assign(new Error('getaddrinfo ENOTFOUND api.elevenlabs.io'), { isAxiosError: true, code: 'ENOTFOUND' }));
+    await expectFailure(502, 'TTS_UPSTREAM_ERROR');
+  });
+
+  it('502 TTS_UPSTREAM_ERROR for a 200 that has no audio in it, and caches nothing', async () => {
+    ttsBehavior = async () => ({ data: Buffer.alloc(0), headers: { 'content-type': 'audio/mpeg' } });
+    await expectFailure(502, 'TTS_UPSTREAM_ERROR');
+
+    ttsBehavior = async () => ({ data: Buffer.from('<html>Bad gateway</html>'), headers: { 'content-type': 'text/html' } });
+    await expectFailure(502, 'TTS_UPSTREAM_ERROR');
+
+    assert.equal(audioFiles().length, 0);
+  });
+
+  it('500 TTS_STORAGE_ERROR when the generated audio cannot be saved', async () => {
+    // A plain file where the audio directory should be makes mkdir/write fail.
+    fs.mkdirSync(path.join(workDir, 'public'), { recursive: true });
+    fs.writeFileSync(audioDir, 'not a directory');
+
+    await expectFailure(500, 'TTS_STORAGE_ERROR');
+    fs.rmSync(audioDir, { force: true });
+  });
+
+  it('503 TTS_NOT_CONFIGURED, without calling the provider, and the log names the missing variable', async () => {
+    config.TTS_API_KEY = '';
+    await expectFailure(503, 'TTS_NOT_CONFIGURED', 'Audio is not configured on the server');
+    assert.ok(errorLog.some((line) => line.includes('TTS_API_KEY is not set')));
+
+    config.TTS_API_KEY = 'test-tts-key';
+    config.TTS_PROVIDER = '';
+    await expectFailure(503, 'TTS_NOT_CONFIGURED');
+    assert.ok(errorLog.some((line) => line.includes('TTS_PROVIDER is not set')));
+
+    assert.equal(ttsCalls.length, 0);
+  });
+
+  it('503 TTS_NOT_CONFIGURED for an unknown or not-yet-implemented provider', async () => {
+    config.TTS_PROVIDER = 'nope';
+    await expectFailure(503, 'TTS_NOT_CONFIGURED');
+    assert.ok(errorLog.some((line) => line.includes('Unknown TTS_PROVIDER "nope"')));
+
+    config.TTS_PROVIDER = 'google'; // stub adapter, not implemented
+    await expectFailure(503, 'TTS_NOT_CONFIGURED');
+    assert.ok(errorLog.some((line) => line.includes('not implemented yet')));
+
+    assert.equal(ttsCalls.length, 0);
+  });
+
+  it('never leaks the API key or provider text, whatever the failure', async () => {
+    failWith(providerError(401, { status: 'invalid_api_key', message: 'Invalid API key test-tts-key' }));
+    const res = await post('/direct/audio', article());
+    assert.ok(!JSON.stringify(await res.json()).includes('test-tts-key'));
+  });
+
+  it('leaves nothing cached after a failure, and the next click retries and succeeds', async () => {
+    failWith(providerError(500, { message: 'internal error' }));
+    await expectFailure(502, 'TTS_UPSTREAM_ERROR');
+    assert.equal(audioFiles().length, 0);
+
+    ttsBehavior = async () => Buffer.from('fake-mp3-bytes');
+    const retried = await post('/direct/audio', article());
+
+    assert.equal(retried.status, 200);
+    assert.equal(audioFiles().length, 1);
+    assert.equal(ttsCalls.length, 2);
+  });
+
+  it('keeps the original Nuzio flow tolerant: AudioService.generateAudio still resolves null instead of throwing', async () => {
+    const { default: audioService } = await import('../src/services/audio.service.js');
+
+    failWith(providerError(401, { status: 'quota_exceeded', message: 'out of credits' }));
+    assert.equal(await audioService.generateAudio('Hello there', 'en', 'Aria'), null);
+    assert.ok(errorLog.some((line) => line.includes('frontend will fall back to SpeechSynthesis')));
+
+    config.TTS_API_KEY = '';
+    assert.equal(await audioService.generateAudio('Hello there', 'en', 'Aria'), null);
   });
 });
 
@@ -262,6 +414,16 @@ describe('buildNarration', () => {
 
   it('copes with a missing description and source', () => {
     assert.equal(buildNarration({ title: 'Just a headline' }), 'Just a headline.');
+  });
+
+  it('reads the description when the headline is empty', () => {
+    assert.equal(buildNarration({ title: '<i></i>', source: 'BBC', content: 'Only a description.' }), 'From BBC. Only a description.');
+  });
+
+  it('returns nothing when there is nothing speakable (no text, only markup or punctuation)', () => {
+    assert.equal(buildNarration({}), '');
+    assert.equal(buildNarration({ title: '<b></b>', source: 'BBC', content: '  ' }), '');
+    assert.equal(buildNarration({ title: '!!! ...', content: '<p>-</p>' }), '');
   });
 
   it('caps long text at a sentence end, never mid-word', () => {

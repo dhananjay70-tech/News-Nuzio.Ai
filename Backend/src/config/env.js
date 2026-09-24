@@ -19,7 +19,8 @@ export const config = {
   // Base URL this server is reachable at - used to build absolute URLs for
   // generated audio files (the frontend runs on a different origin/port,
   // so a relative "/audio/x.mp3" path would resolve against the wrong host).
-  BACKEND_URL: process.env.BACKEND_URL || `http://localhost:${port}`,
+  // Render sets RENDER_EXTERNAL_URL to the service's public URL automatically.
+  BACKEND_URL: process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`,
 
   // Database
   DATABASE_URL: process.env.DATABASE_URL,
@@ -52,5 +53,14 @@ export const config = {
   AI_SERVICE_TIMEOUT_MS: positiveInt(process.env.AI_SERVICE_TIMEOUT_MS, 10000),
   AI_SERVICE_TRIGGER_TIMEOUT_MS: positiveInt(process.env.AI_SERVICE_TRIGGER_TIMEOUT_MS, 5000),
 };
+
+// Misconfigurations that otherwise only show up later as a failing Listen
+// button. Names variables only - never values.
+if (config.TTS_PROVIDER && !config.TTS_API_KEY) {
+  console.warn(`⚠️  TTS_PROVIDER is "${config.TTS_PROVIDER}" but TTS_API_KEY is empty - audio generation will fail`);
+}
+if (config.isProd && config.TTS_PROVIDER && config.BACKEND_URL.startsWith('http://localhost')) {
+  console.warn('⚠️  BACKEND_URL is not set: generated audio URLs will point at localhost, which browsers cannot load in production. Set BACKEND_URL to this server\'s public https URL.');
+}
 
 export default config;
